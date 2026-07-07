@@ -1,6 +1,7 @@
 package com.behaviorengine.navigation
 
 private const val OBJECT_DETAILS_ARG_OBJECT_ID = "objectId"
+private const val TEACHING_PREPARATION_ARG_SESSION_ID = "sessionId"
 
 /**
  * Type-safe route definitions for [BehaviorEngineNavGraph]. A sealed class rather than raw
@@ -25,6 +26,12 @@ sealed class Screen(val route: String) {
     data object ObjectDetails : Screen("object_details/{$OBJECT_DETAILS_ARG_OBJECT_ID}") {
         const val ARG_OBJECT_ID = OBJECT_DETAILS_ARG_OBJECT_ID
         fun createRoute(objectId: String) = "object_details/$objectId"
+    }
+
+    /** Takes a [TeachingSession][com.behaviorengine.core.domain.teaching.TeachingSession] id argument. */
+    data object TeachingPreparation : Screen("teaching_preparation/{$TEACHING_PREPARATION_ARG_SESSION_ID}") {
+        const val ARG_SESSION_ID = TEACHING_PREPARATION_ARG_SESSION_ID
+        fun createRoute(sessionId: String) = "teaching_preparation/$sessionId"
     }
 
     companion object {

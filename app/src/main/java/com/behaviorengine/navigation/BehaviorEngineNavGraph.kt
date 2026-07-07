@@ -25,16 +25,27 @@ import com.behaviorengine.core.presentation.objects.ObjectsScreen
 import com.behaviorengine.core.presentation.settings.SettingsScreen
 import com.behaviorengine.core.presentation.splash.SplashScreen
 import com.behaviorengine.core.presentation.teaching.TeachingScreen
+import com.behaviorengine.core.presentation.teachingpreparation.TeachingPreparationScreen
 import com.behaviorengine.core.presentation.welcome.WelcomeScreen
 
 private const val TRANSITION_MILLIS = 300
 private const val SLIDE_DIVISOR = 5
 
+/** Returns to the Objects tab exactly as tapping its bottom nav item would — same save/restore semantics. */
+private fun navigateToObjectsTab(navController: NavHostController) {
+    navController.navigate(Screen.Objects.route) {
+        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
 /**
  * Top-level navigation graph. A [Scaffold] with a bottom bar wraps the whole [NavHost]; the bar
  * itself only renders for [Screen.BOTTOM_NAV_ROUTES] — Splash, Welcome, [Screen.ObjectDetails],
- * and [Screen.EngineDiagnostics] are all full-screen with no bottom bar, since they're either
- * pre-onboarding or "detail" screens one level below the four main tabs.
+ * [Screen.EngineDiagnostics], and [Screen.TeachingPreparation] are all full-screen with no bottom
+ * bar, since they're either pre-onboarding or "detail"/"in-flow" screens one level below the four
+ * main tabs.
  *
  * Only [Screen.Objects] and [Screen.Welcome] are fully designed this phase;
  * [Screen.Teaching]/[Screen.Automation]/[Screen.Settings] remain simple placeholders.
@@ -101,7 +112,12 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
                 )
             }
             composable(Screen.Teaching.route) {
-                TeachingScreen()
+                TeachingScreen(
+                    onStartTeaching = { sessionId ->
+                        navController.navigate(Screen.TeachingPreparation.createRoute(sessionId))
+                    },
+                    onCancelClick = { navigateToObjectsTab(navController) }
+                )
             }
             composable(Screen.Automation.route) {
                 AutomationScreen()
@@ -119,6 +135,12 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
                 arguments = listOf(navArgument(Screen.ObjectDetails.ARG_OBJECT_ID) { type = NavType.StringType })
             ) {
                 ObjectDetailsScreen(onBackClick = { navController.popBackStack() })
+            }
+            composable(
+                route = Screen.TeachingPreparation.route,
+                arguments = listOf(navArgument(Screen.TeachingPreparation.ARG_SESSION_ID) { type = NavType.StringType })
+            ) {
+                TeachingPreparationScreen(onFinishClick = { navigateToObjectsTab(navController) })
             }
         }
     }

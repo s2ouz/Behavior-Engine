@@ -1,10 +1,11 @@
-# Behavior Engine — v0.7.0 Visual Memory Foundation
+# Behavior Engine — v0.8.0 Teaching Workflow
 
 A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine; v0.6.0 built
-onboarding and the navigation shell. **v0.7.0 gives the product its heart**: the taught-object
-library ("Visual Objects") every future feature will operate on. Still no image processing, no
-recognition, no AI, no Accessibility, no screen capture, no MediaProjection — only the product
-structure those features will eventually plug into.
+onboarding and the navigation shell; v0.7.0 gave the product its taught-object library ("Visual
+Objects"). **v0.8.0 prepares the complete teaching workflow**: a user can now start a teaching
+session for an object and watch it move through preparation — still no image capture, no
+recognition, no screen recording permission request, no AI. Only the lifecycle those features
+will eventually plug into.
 
 ## Opening the project
 
@@ -19,17 +20,20 @@ version (Gradle 8.9). Regenerate the launcher one of two ways:
 
 Requires JDK 17 and Android SDK Platform 35 (installed via Android Studio's SDK Manager).
 
-## Product navigation flow (changed in v0.7.0)
+## Product navigation flow (changed in v0.8.0)
 
 ```mermaid
 graph TD
     Splash["Splash — decides Welcome vs Objects"] -->|first launch| Welcome["Welcome — nickname onboarding"]
     Splash -->|returning user| Objects
     Welcome -->|saveNickname + completeFirstLaunch| Objects["Objects — visual memory library"]
-    Objects <-->|bottom nav| Teaching["Teaching (placeholder)"]
+    Objects <-->|bottom nav| Teaching["Teaching — start a session"]
     Objects <-->|bottom nav| Automation["Automation (placeholder)"]
     Objects <-->|bottom nav| Settings["Settings (placeholder)"]
     Objects -->|tap card / + New| ObjectDetails["Object Details (read-only)"]
+    Teaching -->|Start Teaching| TeachingPreparation["Teaching Preparation — checklist"]
+    TeachingPreparation -->|Finish| Objects
+    Teaching -->|Cancel| Objects
     Settings -.Engine Diagnostics link.-> EngineScreen["EngineScreen — the v0.1.0-v0.5.0 engine control screen"]
 ```
 
@@ -93,6 +97,39 @@ this can ever be defined, shared by `ObjectCard` and `ObjectDetailsScreen`:
 `READY`→green, `TRAINING`→yellow, `DISABLED`→gray, `ARCHIVED`→red — exactly the four colors this
 phase's spec allows.
 
+## The teaching workflow (v0.8.0)
+
+```
+core.domain.teaching.TeachingSession     // sessionId, objectId, created, status, capturedSamples, reserved
+core.domain.teaching.TeachingStatus      // CREATED/PREPARING/READY/RUNNING/PAUSED/STOPPED/FINISHED/CANCELLED
+core.domain.teaching.TeachingManager     // create/start/pause/resume/finish/cancel/destroy — lifecycle only
+core.domain.teaching.TeachingRepository  // save/load/delete — sessions IS the session history
+core.data.teaching.TeachingManagerImpl   // writes through to the repository on every transition
+core.data.teaching.TeachingRepositoryImpl // in-memory only, same reasoning as VisualObjectRepositoryImpl
+```
+
+**Lifecycle only, on purpose.** This phase explicitly forbids capture, recognition, and screen
+recording — `TeachingManager` only ever moves `TeachingSession.status` forward
+(`CREATED → PREPARING → FINISHED`, or `→ CANCELLED`), it never touches pixels. A future phase
+wiring in the real capture engine only has to teach `startSession` to do more than flip a status.
+
+**No object picker.** The spec's flow is "Choose Object → Start Teaching," but this phase's file
+list doesn't include a picker UI — `TeachingViewModel.selectedObject` is simply the first object in
+`VisualObjectRepository.objects`, since that library (built in v0.7.0) is the only source of
+objects to teach. If none exist yet, the Teaching screen says so and disables "Start Teaching"
+rather than crashing on a null object.
+
+**Teaching Preparation's checklist is static.** "Object Selected" and "Session Created" are always
+checked by the time that screen can show; "Waiting for Screen Capture Permission" and "Waiting for
+Capture Engine" are permanently unchecked placeholders for the phases that build those systems. The
+large `CircularProgressIndicator` doubles as the spec's "Large Icon" and "Loading animation" —
+one Material3 primitive satisfies both requirements without inventing a custom asset.
+
+**"Finish" and "Cancel" both return to the Objects tab** using the exact same
+`popUpTo(startDestination) { saveState = true } / launchSingleTop / restoreState` navigation used
+by the bottom bar itself (factored into `navigateToObjectsTab` in `BehaviorEngineNavGraph`) — "the
+user is always in control" applies as much to backing out mid-flow as it does to finishing it.
+
 ## Engine architecture (unchanged since v0.5.0)
 
 ```mermaid
@@ -135,17 +172,20 @@ com.behaviorengine
 │   ├── common          // App-wide infra: AppConstants, LoggerManager, ConfigManager
 │   ├── data
 │   │   ├── profile      // UserProfileRepositoryImpl (DataStore)
-│   │   └── objects      // VisualObjectRepositoryImpl (in-memory)
+│   │   ├── objects      // VisualObjectRepositoryImpl (in-memory)
+│   │   └── teaching     // TeachingManagerImpl, TeachingRepositoryImpl (in-memory)
 │   ├── domain
 │   │   ├── engine       // Every engine contract (unchanged since v0.5.0)
 │   │   ├── profile      // UserProfile, UserProfileRepository
-│   │   └── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
+│   │   ├── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
+│   │   └── teaching     // TeachingSession, TeachingStatus, TeachingManager, TeachingRepository
 │   └── presentation
 │       ├── splash       // Routing: Welcome vs Objects
 │       ├── welcome      // Onboarding
 │       ├── objects      // The visual memory library (ObjectsViewModel/Screen/Card/EmptyView)
 │       ├── objectdetails// Read-only object details
-│       ├── teaching     // Placeholder
+│       ├── teaching     // Start-a-session screen (TeachingViewModel/Screen)
+│       ├── teachingpreparation // Checklist screen (TeachingPreparationViewModel/Screen)
 │       ├── automation   // Placeholder
 │       ├── settings     // Placeholder + Engine Diagnostics link
 │       ├── engine       // EngineScreen/EngineViewModel (the old engine control screen)
@@ -172,4 +212,6 @@ com.behaviorengine
 Image processing, recognition, AI, object detection, Accessibility, screen capture, and
 MediaProjection are all still out of scope. So is any editing UI for a `VisualObject` (rename,
 notes, image management) — Object Details is read-only per this phase's spec; so is real
-persistence for the object library, per the reasoning above.
+persistence for the object library, per the reasoning above. v0.8.0 adds the teaching *lifecycle*
+only — no image capture, no screen recording permission request, no object picker UI, and no
+persistence for `TeachingSession` either, matching `VisualObjectRepositoryImpl`'s reasoning.
