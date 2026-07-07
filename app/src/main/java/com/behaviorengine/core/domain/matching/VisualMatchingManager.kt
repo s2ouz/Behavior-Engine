@@ -46,6 +46,14 @@ interface VisualMatchingManager {
     /** Runs [findObject] for every id in [templateIds] (or every known template if `null`) against one shared screen capture. */
     suspend fun findAllObjects(templateIds: List<String>? = null, screen: Bitmap? = null): List<MatchResult>
 
+    /**
+     * Captures one live frame right now, `null` if no capture session is active. Exposed for
+     * callers (e.g. `com.behaviorengine.core.domain.ai.AIDecisionManager`) that need the raw
+     * frame for their own analysis (OCR, screen classification) alongside [findAllObjects] —
+     * both reuse this same retry-hardened capture path rather than each re-deriving it.
+     */
+    suspend fun captureLiveScreen(): Bitmap?
+
     /** Cancels whatever [findObject]/[findAllObjects] call is in flight. */
     fun cancel()
 

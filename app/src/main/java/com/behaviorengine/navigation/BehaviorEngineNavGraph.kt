@@ -18,6 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.behaviorengine.core.presentation.ai.AIDashboardScreen
 import com.behaviorengine.core.presentation.automation.AutomationScreen
 import com.behaviorengine.core.presentation.engine.EngineScreen
 import com.behaviorengine.core.presentation.matching.MatchingDebugScreen
@@ -112,7 +113,8 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onEngineDiagnosticsClick = { navController.navigate(Screen.EngineDiagnostics.route) },
-                    onMatchingDebugClick = { navController.navigate(Screen.MatchingDebug.route) }
+                    onMatchingDebugClick = { navController.navigate(Screen.MatchingDebug.route) },
+                    onAIDashboardClick = { navController.navigate(Screen.AIDashboard.route) }
                 )
             }
             composable(Screen.EngineDiagnostics.route) {
@@ -120,6 +122,9 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
             }
             composable(Screen.MatchingDebug.route) {
                 MatchingDebugScreen(onBackClick = { navController.popBackStack() })
+            }
+            composable(Screen.AIDashboard.route) {
+                AIDashboardScreen(onBackClick = { navController.popBackStack() })
             }
             composable(
                 route = Screen.ObjectDetails.route,

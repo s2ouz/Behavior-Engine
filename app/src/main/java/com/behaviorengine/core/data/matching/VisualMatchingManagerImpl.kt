@@ -174,7 +174,7 @@ class VisualMatchingManagerImpl @Inject constructor(
      * capture reliable in practice; a continuous consumer like Teaching Mode's own loop never
      * needs this because it's already polling every tick.
      */
-    private suspend fun captureLiveScreen(): Bitmap? {
+    override suspend fun captureLiveScreen(): Bitmap? {
         if (!screenCaptureManager.isCapturing.value) return null
         repeat(CAPTURE_RETRY_ATTEMPTS) { attempt ->
             val frame = screenCaptureManager.captureFrame()

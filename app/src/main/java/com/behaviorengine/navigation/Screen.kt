@@ -24,6 +24,9 @@ sealed class Screen(val route: String) {
     /** SPEC-11's debug/development screen for the Intelligent Visual Matching Engine — reachable only from [Settings], same reasoning as [EngineDiagnostics]. */
     data object MatchingDebug : Screen("matching_debug")
 
+    /** SPEC-13's debug/development dashboard for the Adaptive AI Decision Engine — reachable only from [Settings], same reasoning as [EngineDiagnostics]. */
+    data object AIDashboard : Screen("ai_dashboard")
+
     /** Takes a [VisualObject][com.behaviorengine.core.domain.objects.VisualObject] id argument. */
     data object ObjectDetails : Screen("object_details/{$OBJECT_DETAILS_ARG_OBJECT_ID}") {
         const val ARG_OBJECT_ID = OBJECT_DETAILS_ARG_OBJECT_ID

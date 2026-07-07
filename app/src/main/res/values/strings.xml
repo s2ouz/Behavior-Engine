@@ -97,6 +97,7 @@
     <string name="settings_placeholder">Settings will be available in a future phase.</string>
     <string name="settings_engine_diagnostics_button">Engine Diagnostics</string>
     <string name="settings_matching_debug_button">Visual Matching Debug</string>
+    <string name="settings_ai_dashboard_button">AI Decision Dashboard</string>
 
     <!-- Visual Matching debug screen (SPEC-11) -->
     <string name="matching_debug_back_button">← Back</string>
@@ -120,6 +121,40 @@
     <!-- VisualMatchingService notification -->
     <string name="matching_service_channel_name">Visual Matching</string>
     <string name="matching_service_notification_text">Visual matching capture is active</string>
+
+    <!-- AI Decision dashboard (SPEC-13) -->
+    <string name="ai_dashboard_back_button">← Back</string>
+    <string name="ai_dashboard_title">AI Decision Dashboard</string>
+    <string name="ai_dashboard_subtitle">Adaptive workflow execution, one decision at a time</string>
+    <string name="ai_dashboard_capture_inactive">Screen capture is not active. Start it to analyze the live screen.</string>
+    <string name="ai_dashboard_sessions_title">Teaching Sessions</string>
+    <string name="ai_dashboard_no_sessions">No teaching sessions yet — teach something first.</string>
+    <string name="ai_dashboard_derive_button">Derive Workflow</string>
+    <string name="ai_dashboard_workflows_title">Workflows</string>
+    <string name="ai_dashboard_no_workflows">No workflows yet — derive one from a session above.</string>
+    <string name="ai_dashboard_select_button">Select</string>
+    <string name="ai_dashboard_step_label">Step</string>
+    <string name="ai_dashboard_auto_run_label">Auto-Run</string>
+    <string name="ai_dashboard_run_step_button">Run Step</string>
+    <string name="ai_dashboard_reset_button">Reset</string>
+    <string name="ai_dashboard_cancel_button">Cancel</string>
+    <string name="ai_dashboard_screen_state_title">Recognized Screen</string>
+    <string name="ai_dashboard_screen_type_label">Screen Type</string>
+    <string name="ai_dashboard_confidence_label">Confidence</string>
+    <string name="ai_dashboard_detected_objects_label">Detected Objects</string>
+    <string name="ai_dashboard_decision_title">Decision</string>
+    <string name="ai_dashboard_action_label">Action</string>
+    <string name="ai_dashboard_alternatives_label">Alternatives Considered</string>
+    <string name="ai_dashboard_prediction_title">Prediction</string>
+    <string name="ai_dashboard_expected_object_label">Expected Object</string>
+    <string name="ai_dashboard_probability_label">Probability</string>
+    <string name="ai_dashboard_runtime_title">Runtime</string>
+    <string name="ai_dashboard_steps_completed_label">Steps Completed</string>
+    <string name="ai_dashboard_steps_failed_label">Steps Failed</string>
+    <string name="ai_dashboard_recoveries_label">Recoveries Used</string>
+    <string name="ai_dashboard_avg_latency_label">Avg. Decision Latency</string>
+    <string name="ai_dashboard_not_yet_analyzed">Not yet analyzed — tap Run Step.</string>
+    <string name="ai_dashboard_no_runtime_yet">No completed run yet.</string>
 
     <!-- Engine diagnostics screen (formerly the v0.1.0-v0.5.0 Home screen) -->
     <string name="engine_back_button">← Back</string>

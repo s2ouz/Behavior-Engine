@@ -1,15 +1,19 @@
-# Behavior Engine — v0.11.0 Intelligent Visual Matching Engine
+# Behavior Engine — v0.12.0 Adaptive AI Decision Engine
 
 A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine; v0.6.0 built
 onboarding and the navigation shell; v0.7.0 gave the product its taught-object library ("Visual
 Objects"); v0.8.0 built a lifecycle-only teaching session placeholder; v0.9.0 replaced it with real
 `MediaProjection` screen recording; v0.10.0 turned that raw recording into a library of
 `ObjectTemplate`s (crop, mask, measure, OCR — automatically, the moment a teaching session
-finishes). **v0.11.0 (SPEC-11) closes the loop**: given any `ObjectTemplate`, the new Intelligent
-Visual Matching Engine (IVME) searches a live screen capture and returns its most probable
-location and a 0–100% confidence, without relying on fixed coordinates — tolerant of a different
-resolution, a moved/resized element, or light vs. dark theme. IVME only *locates* objects; it still
-performs no clicks, taps, or automation of any kind.
+finishes); v0.11.0 (SPEC-11) built the Intelligent Visual Matching Engine (IVME), which finds any
+`ObjectTemplate` on a live screen capture with a 0–100% confidence, without fixed coordinates.
+**v0.12.0 (SPEC-13) adds the Adaptive AI Decision Engine (AADE)**, the intelligence layer the spec
+describes as sitting "above the Automation Engine": given a learned `Workflow`, it recognizes the
+current screen, predicts the next step, reasons over multiple signals, and decides how to continue
+— including recovering from missing objects, unexpected dialogs, or UI drift — all fully
+explainable (every `Decision` states its reason, confidence, and the alternatives it didn't pick).
+**AADE only *decides*; nothing in this codebase yet executes a real tap or click** — see "What's
+deliberately not here" below for why, and exactly what would need to change to add it.
 
 ## Opening the project
 
@@ -345,6 +349,94 @@ as the spec's "debugging screen" section lists. The optional bounding-box overla
 to debug builds at the manifest/service level since this whole screen is already unreachable from
 the product's main flow.
 
+## Adaptive AI Decision Engine (v0.12.0)
+
+```
+core.domain.ai.Workflow/WorkflowStep       // a replayable sequence of learned steps — see "Workflow" below
+core.domain.ai.WorkflowRepository          // deriveFromSession() — the only way a Workflow comes into existence
+core.domain.ai.ScreenType/ScreenState      // StateRecognitionEngine's classification of a live capture
+core.domain.ai.RuntimeContext             // ContextManager's "where things stand right now"
+core.domain.ai.Decision/DecisionAction/DecisionAlternative // DecisionEngine's fully-explainable output
+core.domain.ai.Prediction                 // PredictionEngine's "what should happen next"
+core.domain.ai.ReasoningResult/ActionScore // ReasoningEngine's per-action scores + six raw signals
+core.domain.ai.SuccessfulRoute/FailedAttempt/UIVariation/AIRuntimeStatistics // MemoryEngine's records
+core.domain.ai.ContextManager/StateRecognitionEngine/PredictionEngine/ReasoningEngine/ConfidenceEngine/DecisionEngine/AdaptiveRecoveryEngine/MemoryEngine // every named engine, per spec
+core.domain.ai.AutomationExecutor         // the seam to a real Automation Engine — see below
+core.domain.ai.AIRepository/AIStorage     // decision/prediction/runtime/memory history, JSON, own AI/ root
+core.domain.ai.AIDecisionManager          // top-level orchestrator — analyzeScreen/predictNextStep/generatePlan/executeDecision/evaluateResult/cancel/pause
+core.data.ai.*Impl                        // real implementations of all of the above
+core.presentation.ai                      // AIDashboardViewModel/Screen — Settings → "AI Decision Dashboard"
+core.common.AIDecisionLogger              // named log events, funneled through LoggerManager
+```
+
+**Pipeline, exactly as spec'd** (with one clarified ordering — see below): capture screen →
+`StateRecognitionEngine` → `ContextManager` → `PredictionEngine` → `ReasoningEngine` →
+`DecisionEngine` → (confidence too low, or the action itself signals trouble? →
+`AdaptiveRecoveryEngine`) → `AutomationExecutor` → result evaluation → `MemoryEngine` update,
+orchestrated by `AIDecisionManagerImpl`. Every stage is also independently callable — the
+dashboard calls `analyzeScreen()`/`predictNextStep()`/`generatePlan()`/`executeDecision()`/
+`evaluateResult()` one at a time so a developer can inspect each intermediate result, not just the
+final action.
+
+**Two foundational gaps had to be resolved with judgment calls, since SPEC-13 assumes both already exist:**
+
+**1. There was no "Workflow" concept anywhere in this codebase.** Teaching Mode (v0.9.0) records
+raw touches to *learn objects* (v0.10.0), not to author a replayable sequence of steps — no prior
+phase built anything resembling SPEC-13's `RuntimeContext.workflowId`/`currentStep`. Rather than
+invent a whole authoring UI the spec never asked for, `WorkflowRepository.deriveFromSession()`
+builds a `Workflow` from an already-finished `TeachingSession`: its touches, in recorded order,
+filtered to only the ones that produced a `LearnedObject` (v0.10.0's own 70% confidence gate
+already rejected the rest — this phase trusts that gate rather than re-deriving its own). This is
+an honest, real definition of "workflow" — "the sequence of objects the user actually taught, in
+the order they taught them" — not a placeholder, though it means a workflow can contain many
+near-duplicate steps if the same UI element was touched repeatedly during teaching (each touch
+independently produces its own `ObjectTemplate`, even for visually-identical content — v0.10.0 has
+no cross-touch deduplication, and this phase doesn't add one).
+
+**2. There is still no real Automation Engine.** SPEC-13 is written as the layer "above the
+Automation Engine" and its pipeline diagram ends in "Automation Engine → Result Evaluation," but no
+prior SPEC built one, and SPEC-13 itself requests no new execution permission (no
+`AccessibilityService` with `FLAG_REQUEST_MOTION_EVENTS`, no Instrumentation, nothing). Rather than
+fabricate unauthorized device control, `AutomationExecutor` is a real, complete interface, but
+`NoOpAutomationExecutor` — the only implementation this phase — computes and logs every `Decision`
+without physically acting on the device. This is not a cop-out: it's the literal spec text, "always
+prefer safe termination over unsafe execution." A future phase can bind a real executor behind this
+one interface without touching `AIDecisionManager` or anything upstream of it. Because nothing
+physically executes, "Auto-Run" on the dashboard is clearly labeled as simulated — it advances
+workflow steps based on computed decisions, not verified on-screen outcomes.
+
+**Context Builder runs after State Recognition, not before**, despite the spec's architecture
+diagram listing them in the opposite order — `RuntimeContext`'s own field list ("current screen,"
+"visible objects," "OCR text") is exactly `ScreenState`'s output, so `ContextManager` cannot run
+before `StateRecognitionEngine` produces something to build a context *from*. Documented as a
+deliberate, necessary reordering, not an oversight.
+
+**State recognition and reasoning reuse IVME/v0.10.0 rather than re-deriving signals.**
+`StateRecognitionEngineImpl` classifies screens by OCR keyword matching (a real, honest heuristic —
+this project has no bundled scene classifier, same "no OpenCV/TFLite" stance as every prior phase)
+plus which of the workflow's known objects `VisualMatchingManager.findAllObjects()` actually finds.
+`ReasoningEngineImpl.visualMatch` reuses `MatchResult.confidence` directly rather than re-deriving
+visual/OCR confidence from raw pixels, since IVME's own `ConfidenceEngine` already blends those
+signals for "is this the right pixels" — AADE's own `ConfidenceEngine` is a strictly higher-level
+judgment ("is this the right *decision*"), weighted per spec: Visual Match 35% / Workflow Context
+20% / OCR Match 15% / History 15% / Layout Similarity 10% / Timing 5%.
+
+**`AdaptiveRecoveryEngine` runs the spec's exact seven-step ladder** (Alternative Object →
+Alternative Scroll → Previous Successful Route → Wait and Retry → Search Entire Screen → Fallback
+Strategy → Abort), each step backed by a real check (`VisualMatchingManager.findObject`/
+`findAllObjects` re-attempts, `MemoryEngine`'s recorded `UIVariation`s/`SuccessfulRoute`s) and
+always terminating in a real `Decision` — worst case `STOP_EXECUTION` — never throwing, per spec's
+safe-termination rule. It's invoked whenever `DecisionEngine`'s confidence falls under 50% or its
+action is one that signals trouble (`RETRY_STEP`/`SEARCH_ALTERNATIVE_OBJECT`/`GO_BACK`).
+
+**The AI Dashboard is the spec's required deliverable, not a bonus feature — and doubles as the
+only way to create a `Workflow`.** Settings → "AI Decision Dashboard" starts the shared capture
+session (same `ScreenCaptureManager` singleton IVME uses), lists finished teaching sessions with a
+"Derive Workflow" button, lets a developer select a derived workflow, then Run Step (or toggle
+Auto-Run) through it while showing the recognized screen, the full decision with confidence and
+alternatives considered, the prediction, and running statistics — exactly the spec's Dashboard
+section.
+
 ## Engine architecture (unchanged since v0.5.0)
 
 ```mermaid
@@ -390,14 +482,16 @@ com.behaviorengine
 │   │   ├── objects      // VisualObjectRepositoryImpl (in-memory)
 │   │   ├── teaching     // Real impls of every core.domain.teaching manager/repository/storage
 │   │   ├── objectlearning // Real impls of every core.domain.objectlearning contract (v0.10.0)
-│   │   └── matching     // Real impls of every core.domain.matching contract (v0.11.0 / SPEC-11)
+│   │   ├── matching     // Real impls of every core.domain.matching contract (v0.11.0 / SPEC-11)
+│   │   └── ai           // Real impls of every core.domain.ai contract (v0.12.0 / SPEC-13)
 │   ├── domain
 │   │   ├── engine       // Every engine contract (unchanged since v0.5.0)
 │   │   ├── profile      // UserProfile, UserProfileRepository
 │   │   ├── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
 │   │   ├── teaching     // TeachingSession/TouchSample/ScreenFrame + every manager contract
 │   │   ├── objectlearning // ObjectTemplate/LearnedObject + every learning-manager contract (v0.10.0)
-│   │   └── matching     // MatchResult/CandidateRegion + every IVME pipeline-stage contract (v0.11.0)
+│   │   ├── matching     // MatchResult/CandidateRegion + every IVME pipeline-stage contract (v0.11.0)
+│   │   └── ai           // Workflow/Decision/RuntimeContext + every AADE pipeline-stage contract (v0.12.0)
 │   └── presentation
 │       ├── splash       // Routing: Welcome vs Objects
 │       ├── welcome      // Onboarding
@@ -405,8 +499,9 @@ com.behaviorengine
 │       ├── objectdetails// Read-only object details
 │       ├── teaching     // Teaching Mode screen (TeachingViewModel/Screen) — idle/active/learning states
 │       ├── matching     // Visual Matching debug screen (MatchingDebugViewModel/Screen) — v0.11.0
+│       ├── ai           // AI Decision dashboard (AIDashboardViewModel/Screen) — v0.12.0
 │       ├── automation   // Placeholder
-│       ├── settings     // Placeholder + Engine Diagnostics / Visual Matching Debug links
+│       ├── settings     // Placeholder + Engine Diagnostics / Visual Matching Debug / AI Dashboard links
 │       ├── engine       // EngineScreen/EngineViewModel (the old engine control screen)
 │       └── common       // PlaceholderScreen, InfoRow, StatusBadge, VisualObjectStatusUi
 ├── engine               // Concrete implementations of every core.domain.engine interface
@@ -417,8 +512,8 @@ com.behaviorengine
 ├── behavior             // (future) rules / actions / feedback
 ├── memory               // (future) persisted history for learning to train on
 ├── learning             // (future) adapts rules/decisions over time
-├── automation           // (future) executes actions against the device — IVME (v0.11.0) only *locates*, this still performs no clicks
-├── accessibility        // (future) AccessibilityService integration
+├── automation           // (future, still unbuilt) — no real Automation Engine exists yet; AADE's (v0.12.0) AutomationExecutor lives under core.domain/data.ai instead, and its only implementation is a safe no-op — see the AADE section above
+├── accessibility        // (future) AccessibilityService integration — the real execution mechanism a future Automation Engine would most likely need
 ├── services             // EngineService + TeachingOverlayService + VisualMatchingService (foreground hosts)
 ├── settings             // AppSettings model + DataStore prep (distinct from profile)
 ├── utils                // Time/number/date formatting helpers
@@ -428,6 +523,24 @@ com.behaviorengine
 ```
 
 ## What's deliberately not here
+
+**v0.12.0**: AADE only *decides* — there is still no real Automation Engine anywhere in this
+codebase, and this phase doesn't add one (see the AADE section above for the full reasoning);
+`NoOpAutomationExecutor` computes and logs every `Decision` without physically acting on the
+device. There's no workflow-authoring UI — `Workflow`s only come from `WorkflowRepository.deriveFromSession()`,
+so a workflow's steps are exactly whatever a teaching session happened to learn, in that order, not
+something a user can hand-edit, reorder, or annotate with expected outcomes. `RuntimeContext.variables`
+is always an empty map — there's no variable-authoring UI either. `PredictionEngine`'s
+`expectedScreen`/`expectedOcrText` are always `null` — the workflow model has no per-step "expected
+screen type" or "expected text" annotation to predict from, only a target template id; a future
+phase could enrich `WorkflowStep` with that metadata. `ContextManager.activePackage` is read from
+the source teaching session's recorded package, not live foreground-app detection — reusing that
+existing data was preferable to re-deriving `PACKAGE_USAGE_STATS` logic already private to
+`SessionManagerImpl`. Workflow steps aren't deduplicated for visually-identical repeated touches
+(see above). "Decision latency under 200ms when possible" is measured and reported
+(`AIRuntimeStatistics.averageDecisionLatencyMillis`) but not enforced with a hard timeout the way
+IVME enforces its 300ms search budget — `DecisionEngine`/`ReasoningEngine` are cheap in-memory
+computations, not the expensive multi-scale pixel search IVME had to bound.
 
 **v0.11.0**: IVME only *locates* — "this module does NOT perform clicks or automation," per spec;
 `com.behaviorengine.automation` stays empty/reserved for whatever future phase actually acts on a

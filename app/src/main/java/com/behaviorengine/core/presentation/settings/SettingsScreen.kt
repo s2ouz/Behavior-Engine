@@ -19,7 +19,7 @@ import com.behaviorengine.core.presentation.common.PlaceholderScreen
  * v0.1.0–v0.5.0 stays reachable instead of becoming unreferenced dead code.
  */
 @Composable
-fun SettingsScreen(onEngineDiagnosticsClick: () -> Unit, onMatchingDebugClick: () -> Unit) {
+fun SettingsScreen(onEngineDiagnosticsClick: () -> Unit, onMatchingDebugClick: () -> Unit, onAIDashboardClick: () -> Unit) {
     PlaceholderScreen(
         title = stringResource(R.string.settings_title),
         description = stringResource(R.string.settings_placeholder)
@@ -31,6 +31,10 @@ fun SettingsScreen(onEngineDiagnosticsClick: () -> Unit, onMatchingDebugClick: (
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedButton(onClick = onMatchingDebugClick) {
             Text(stringResource(R.string.settings_matching_debug_button))
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedButton(onClick = onAIDashboardClick) {
+            Text(stringResource(R.string.settings_ai_dashboard_button))
         }
     }
 }
