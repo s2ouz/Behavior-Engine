@@ -419,7 +419,12 @@ plus which of the workflow's known objects `VisualMatchingManager.findAllObjects
 visual/OCR confidence from raw pixels, since IVME's own `ConfidenceEngine` already blends those
 signals for "is this the right pixels" — AADE's own `ConfidenceEngine` is a strictly higher-level
 judgment ("is this the right *decision*"), weighted per spec: Visual Match 35% / Workflow Context
-20% / OCR Match 15% / History 15% / Layout Similarity 10% / Timing 5%.
+20% / OCR Match 15% / History 15% / Layout Similarity 10% / Timing 5%. Keyword classification is
+honest but naive by construction: live-tested against the AI Dashboard screen itself, it correctly
+read the screen's own "Cancel" button text and classified the screen as `CONFIRMATION_DIALOG` —
+technically correct given the keyword list, but a reminder that this classifier has no concept of
+*which app* it's looking at, only what text is present. A future phase with a real trained
+classifier (or a larger, app-aware keyword set) could reduce this kind of false positive.
 
 **`AdaptiveRecoveryEngine` runs the spec's exact seven-step ladder** (Alternative Object →
 Alternative Scroll → Previous Successful Route → Wait and Retry → Search Entire Screen → Fallback
