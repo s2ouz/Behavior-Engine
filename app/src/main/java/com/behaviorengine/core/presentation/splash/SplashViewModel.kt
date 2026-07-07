@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Decides Welcome-vs-Home exactly once per cold start, reading
+ * Decides Welcome-vs-Objects exactly once per cold start, reading
  * [UserProfileRepository.awaitProfile] rather than the cached [UserProfileRepository.profile]
  * StateFlow — the latter's [kotlinx.coroutines.flow.SharingStarted.Eagerly] default would read
  * back `hasCompletedFirstLaunch = false` for a fraction of a second even for a returning user,
@@ -30,7 +30,7 @@ class SplashViewModel @Inject constructor(
         viewModelScope.launch {
             val profile = userProfileRepository.awaitProfile()
             _startDestination.value = if (profile.hasCompletedFirstLaunch) {
-                StartDestination.Home
+                StartDestination.Objects
             } else {
                 StartDestination.Welcome
             }

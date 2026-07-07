@@ -1,11 +1,10 @@
-# Behavior Engine — v0.6.0 Product Foundation
+# Behavior Engine — v0.7.0 Visual Memory Foundation
 
-A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine (lifecycle, tick
-loop, modules, background service, diagnostics) — that work is complete and untouched this phase.
-**v0.6.0 starts building the actual product**: first-launch onboarding, a local nickname profile,
-and the real navigation shell (Home hub → Objects / Teaching / Automation / Settings). No visual
-recognition, AI, object detection, Accessibility, or MediaProjection yet — only the UX and product
-flow those features will eventually live inside.
+A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine; v0.6.0 built
+onboarding and the navigation shell. **v0.7.0 gives the product its heart**: the taught-object
+library ("Visual Objects") every future feature will operate on. Still no image processing, no
+recognition, no AI, no Accessibility, no screen capture, no MediaProjection — only the product
+structure those features will eventually plug into.
 
 ## Opening the project
 
@@ -20,51 +19,79 @@ version (Gradle 8.9). Regenerate the launcher one of two ways:
 
 Requires JDK 17 and Android SDK Platform 35 (installed via Android Studio's SDK Manager).
 
-## Product navigation flow (new in v0.6.0)
+## Product navigation flow (changed in v0.7.0)
 
 ```mermaid
 graph TD
-    Splash["Splash — decides Welcome vs Home"] -->|first launch| Welcome["Welcome — nickname onboarding"]
-    Splash -->|returning user| Home
-    Welcome -->|saveNickname + completeFirstLaunch| Home["Home — greeting + 4 cards"]
-    Home --> Objects["Objects (placeholder)"]
-    Home --> Teaching["Teaching (placeholder)"]
-    Home --> Automation["Automation (placeholder)"]
-    Home --> Settings["Settings (placeholder)"]
-    Settings -.Engine Diagnostics link.-> EngineScreen["EngineScreen — v0.1.0-v0.5.0's engine control screen"]
+    Splash["Splash — decides Welcome vs Objects"] -->|first launch| Welcome["Welcome — nickname onboarding"]
+    Splash -->|returning user| Objects
+    Welcome -->|saveNickname + completeFirstLaunch| Objects["Objects — visual memory library"]
+    Objects <-->|bottom nav| Teaching["Teaching (placeholder)"]
+    Objects <-->|bottom nav| Automation["Automation (placeholder)"]
+    Objects <-->|bottom nav| Settings["Settings (placeholder)"]
+    Objects -->|tap card / + New| ObjectDetails["Object Details (read-only)"]
+    Settings -.Engine Diagnostics link.-> EngineScreen["EngineScreen — the v0.1.0-v0.5.0 engine control screen"]
 ```
 
-Only Home and Welcome are fully designed this phase; Objects/Teaching/Automation/Settings are
-simple placeholders (`core/presentation/common/PlaceholderScreen.kt`). `EngineScreen` is
-deliberately *not* part of the main flow — it's the fully-functional engine status/control
-screen from prior phases, relocated (not deleted) so end users of a visual-automation product
-aren't shown raw tick counts by default, while the tested functionality stays reachable from
-Settings instead of becoming dead code.
+**The v0.6.0 "Home" hub is gone.** Its only job was navigation, and a persistent bottom bar
+(Objects/Teaching/Automation/Settings) is a strictly better fit for "the user should land in the
+Objects workspace, not a menu screen" — so rather than preserve it the way `EngineScreen` was
+preserved (which had substantial *tested behavior* worth keeping), it was removed outright.
+`BehaviorEngineNavGraph` wraps the whole `NavHost` in a `Scaffold`; the bottom bar renders itself
+only for `Screen.BOTTOM_NAV_ROUTES` — Splash, Welcome, Object Details, and Engine Diagnostics are
+all full-screen with no bottom bar.
 
-## Why routing lives in Splash, not MainActivity
-
-`SplashViewModel` reads `UserProfileRepository.awaitProfile()` — a one-shot suspend read — rather
-than the cached `profile: StateFlow<UserProfile>`. That StateFlow's `SharingStarted.Eagerly`
-default means its *very first* value is `UserProfile()` defaults (`hasCompletedFirstLaunch =
-false`) until the real DataStore read lands a moment later; routing off that cached value would
-flash Welcome at a returning user for a frame. `awaitProfile()` exists specifically to give the
-one call site that makes an irreversible navigation decision the *correct* value, not the
-convenient one.
-
-## Local storage: UserProfile
+## The Visual Object architecture
 
 ```
-core.domain.profile.UserProfile           // nickname, createdAtMillis, hasCompletedFirstLaunch, reserved
-core.domain.profile.UserProfileRepository // interface: profile, awaitProfile(), saveNickname(), completeFirstLaunch()
-core.data.profile.UserProfileRepositoryImpl // DataStore-backed — the first real use of core.data,
-                                            // reserved since v0.1.0 for exactly this
+core.domain.objects.VisualObject           // id, name, created/modified, status, imageCount,
+                                            // recognitionEnabled, notes, reserved (AI metadata)
+core.domain.objects.VisualObjectStatus     // READY / DISABLED / TRAINING / ARCHIVED
+core.domain.objects.VisualObjectRepository // createObject/updateObject/deleteObject/loadObjects/searchObjects
+core.data.objects.VisualObjectRepositoryImpl // in-memory only — see below
 ```
 
-Backed by its own Preferences DataStore file (`user_profile`, qualified `@ProfileDataStore`),
-separate from `settings/SettingsManager`'s (`behavior_engine_settings`, `@SettingsDataStore`) —
-user identity and app configuration are unrelated concerns that happen to both fit Preferences
-DataStore. No login, no email, no network call: the nickname *is* the entire local identity
-system, per this phase's product vision.
+**In-memory, not persisted, on purpose.** This phase's spec says "prepare repository
+architecture... use mock local data if necessary" — there's no image data yet to make real
+persistence meaningful, and the empty-state test case (`Navigate to Objects. Empty state should
+appear.`) requires the library start empty every launch anyway. A future phase backing this with
+Room only has to change `VisualObjectRepositoryImpl`; every screen already goes through the
+`VisualObjectRepository` interface.
+
+`VisualObject` is `@Immutable`-annotated: without it, Compose's stability inference would flag
+the class unstable purely because `reserved` is a `Map`, forcing unnecessary recomposition of
+every card in `ObjectsScreen`'s `LazyColumn` on unrelated state changes. The annotation is honest
+here — every mutation goes through the repository, which always publishes a new instance via
+`copy()`. `kotlinx.collections.immutable` (for the `List<VisualObject>` itself) was deliberately
+*not* added — `LazyColumn`'s stable `key = { it.id }` already covers this phase's real (near-zero)
+scale; reaching for that library is a future option once profiling shows it matters, not a
+default to apply pre-emptively.
+
+## Objects screen
+
+Top bar (title + subtitle), an always-visible search field, and either a premium empty state or a
+`LazyColumn` of cards:
+
+- **Empty**: a tinted circle behind an outlined icon standing in for a real illustration, copy
+  drawn from the product vision ("build your own visual library") rather than a generic
+  "nothing here," and a primary "New Visual Object" button.
+- **Populated**: `ObjectCard` per object (name, `StatusBadge`, image count, created date,
+  three-dot menu), plus a `FloatingActionButton` for adding more. Card press elevation uses
+  Material3's built-in `pressedElevation` — no manual animation code needed for this phase's
+  "small card elevation animation" spec point.
+
+Object creation has no form yet: tapping "New Visual Object" creates one immediately (name
+`"Visual Object #N"`) and navigates straight to its (read-only) details screen — matching the
+literal test case ("Press New Visual Object → Navigate to Object Details placeholder") without
+inventing a creation form the spec never asked for. The three-dot menu's "Edit" also navigates
+there for the same reason: Object Details is the only "manage this object" destination that
+exists yet. "Disable" is a toggle (relabels to "Enable" once disabled) rather than one-directional,
+since a menu action with no way back would feel broken. Delete asks for confirmation first.
+
+Status → color mapping (`core.presentation.common.VisualObjectStatusUi.kt`) is the one place
+this can ever be defined, shared by `ObjectCard` and `ObjectDetailsScreen`:
+`READY`→green, `TRAINING`→yellow, `DISABLED`→gray, `ARCHIVED`→red — exactly the four colors this
+phase's spec allows.
 
 ## Engine architecture (unchanged since v0.5.0)
 
@@ -100,67 +127,49 @@ graph TD
     Health --> Bus
 ```
 
-`EngineViewModel`/`EngineScreen` are `HomeViewModel`/`HomeScreen` renamed — same code, same
-tested behavior — since "Home" now names the product's navigation hub instead.
-
 ## Package structure
 
 ```
 com.behaviorengine
 ├── core
-│   ├── common        // App-wide infra: AppConstants, LoggerManager, ConfigManager
+│   ├── common          // App-wide infra: AppConstants, LoggerManager, ConfigManager
 │   ├── data
-│   │   └── profile    // UserProfileRepositoryImpl (DataStore) — core.data's first real content
+│   │   ├── profile      // UserProfileRepositoryImpl (DataStore)
+│   │   └── objects      // VisualObjectRepositoryImpl (in-memory)
 │   ├── domain
-│   │   ├── engine     // Every engine contract (unchanged since v0.5.0)
-│   │   └── profile    // UserProfile, UserProfileRepository
+│   │   ├── engine       // Every engine contract (unchanged since v0.5.0)
+│   │   ├── profile      // UserProfile, UserProfileRepository
+│   │   └── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
 │   └── presentation
-│       ├── splash     // Routing: Welcome vs Home
-│       ├── welcome    // Onboarding (new)
-│       ├── home       // Product hub: greeting + 4 cards (new content, same package name)
-│       ├── objects    // Placeholder (new)
-│       ├── teaching   // Placeholder (new)
-│       ├── automation // Placeholder (new)
-│       ├── settings   // Placeholder + Engine Diagnostics link
-│       ├── engine     // EngineScreen/EngineViewModel — formerly core.presentation.home (new)
-│       └── common     // PlaceholderScreen, shared by Objects/Teaching/Automation/Settings
-├── engine             // Concrete implementations of every core.domain.engine interface
-├── vision             // (future) screen capture / frame acquisition
-├── recognition        // (future) OCR + visual element recognition
-├── world              // (future) structured "what's on screen" model
-├── behavior           // (future) rules / actions / feedback
-├── memory             // (future) persisted history for learning to train on
-├── learning           // (future) adapts rules/decisions over time
-├── automation         // (future) executes actions against the device
-├── accessibility      // (future) AccessibilityService integration
-├── services           // EngineService (foreground host); future AccessibilityService lives here too
-├── settings           // AppSettings model + DataStore prep (no persistence yet — distinct from profile)
-├── utils              // Small pure-function helpers (time/number formatting)
-├── di                 // Hilt modules + qualifiers
-├── navigation         // Navigation Compose graph + route definitions
-└── ui/theme           // Compose dark theme, typography, color tokens
+│       ├── splash       // Routing: Welcome vs Objects
+│       ├── welcome      // Onboarding
+│       ├── objects      // The visual memory library (ObjectsViewModel/Screen/Card/EmptyView)
+│       ├── objectdetails// Read-only object details
+│       ├── teaching     // Placeholder
+│       ├── automation   // Placeholder
+│       ├── settings     // Placeholder + Engine Diagnostics link
+│       ├── engine       // EngineScreen/EngineViewModel (the old engine control screen)
+│       └── common       // PlaceholderScreen, InfoRow, StatusBadge, VisualObjectStatusUi
+├── engine               // Concrete implementations of every core.domain.engine interface
+├── vision               // (future) screen capture / frame acquisition
+├── recognition          // (future) OCR + visual element recognition
+├── world                // (future) structured "what's on screen" model
+├── behavior             // (future) rules / actions / feedback
+├── memory               // (future) persisted history for learning to train on
+├── learning             // (future) adapts rules/decisions over time
+├── automation           // (future) executes actions against the device
+├── accessibility        // (future) AccessibilityService integration
+├── services             // EngineService (foreground host)
+├── settings             // AppSettings model + DataStore prep (distinct from profile)
+├── utils                // Time/number/date formatting helpers
+├── di                   // Hilt modules + qualifiers
+├── navigation           // Nav graph, route definitions, bottom bar
+└── ui/theme             // Compose dark theme, typography, color tokens
 ```
-
-## Animations
-
-One shared fade+slide transition applied once at the `NavHost` level (`enterTransition` /
-`exitTransition` / `popEnterTransition` / `popExitTransition` in `BehaviorEngineNavGraph.kt`) —
-not per-screen boilerplate. Welcome additionally fades+slides its own content in on first
-composition. Both are deliberately subtle per this phase's spec — no bouncing, no unnecessary
-motion.
-
-## Thread safety & cleanup notes (carried forward from v0.5.0, still accurate)
-
-- `ModuleRegistryImpl` synchronizes all reads/writes of its module map on a private lock.
-- `PerformanceTimerImpl`'s tick counters are safe only because ticks never overlap — documented
-  in its KDoc as an assumption to re-check if that ever changes.
-- Every other piece of shared state (engine or profile) is a `StateFlow`, whose updates are
-  inherently atomic.
 
 ## What's deliberately not here
 
-Visual recognition, AI, object detection, Accessibility, and MediaProjection are all still out of
-scope — this phase only prepares the product structure they'll eventually plug into. Objects,
-Teaching, Automation, and Settings have no functionality beyond navigation; there is nothing
-behind those cards until `vision`/`recognition`/`behavior`/`automation` are implemented in later
-phases.
+Image processing, recognition, AI, object detection, Accessibility, screen capture, and
+MediaProjection are all still out of scope. So is any editing UI for a `VisualObject` (rename,
+notes, image management) — Object Details is read-only per this phase's spec; so is real
+persistence for the object library, per the reasoning above.

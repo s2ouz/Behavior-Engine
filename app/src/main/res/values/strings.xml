@@ -9,20 +9,50 @@
     <string name="welcome_nickname_helper">%1$d–%2$d characters</string>
     <string name="welcome_continue_button">Continue</string>
 
-    <!-- Home screen (product hub) -->
-    <string name="home_greeting">Hello, %1$s</string>
-    <string name="home_card_objects_title">Objects</string>
-    <string name="home_card_objects_description">Manage taught visual objects.</string>
-    <string name="home_card_teaching_title">Teaching</string>
-    <string name="home_card_teaching_description">Start teaching new visual objects.</string>
-    <string name="home_card_automation_title">Automation</string>
-    <string name="home_card_automation_description">Run or stop object automation.</string>
-    <string name="home_card_settings_title">Settings</string>
-    <string name="home_card_settings_description">Application preferences.</string>
+    <!-- Bottom navigation -->
+    <string name="nav_objects">Objects</string>
+    <string name="nav_teaching">Teaching</string>
+    <string name="nav_automation">Automation</string>
+    <string name="nav_settings">Settings</string>
 
-    <!-- Objects screen (placeholder) -->
-    <string name="objects_title">Objects</string>
-    <string name="objects_placeholder">Object management will be available in a future phase.</string>
+    <!-- Objects screen -->
+    <string name="objects_screen_title">Visual Objects</string>
+    <string name="objects_screen_subtitle">Your visual memory library</string>
+    <string name="objects_search_placeholder">Search objects…</string>
+    <string name="objects_empty_title">No visual objects yet.</string>
+    <string name="objects_empty_description">Teach your first object to begin building your automation library.</string>
+    <string name="objects_new_object_button">New Visual Object</string>
+    <string name="objects_created_date">Created %1$s</string>
+    <string name="objects_card_menu_description">More options</string>
+    <string name="objects_menu_edit">Edit</string>
+    <string name="objects_menu_enable">Enable</string>
+    <string name="objects_menu_disable">Disable</string>
+    <string name="objects_menu_delete">Delete</string>
+    <string name="objects_delete_dialog_title">Delete visual object?</string>
+    <string name="objects_delete_dialog_message">\"%1$s\" will be permanently deleted. This action cannot be undone.</string>
+    <string name="objects_delete_dialog_confirm">Delete</string>
+    <string name="objects_delete_dialog_cancel">Cancel</string>
+    <plurals name="objects_image_count">
+        <item quantity="one">%1$d image</item>
+        <item quantity="other">%1$d images</item>
+    </plurals>
+
+    <!-- Visual object status labels -->
+    <string name="status_ready">Ready</string>
+    <string name="status_disabled">Disabled</string>
+    <string name="status_training">Training</string>
+    <string name="status_archived">Archived</string>
+
+    <!-- Object details screen -->
+    <string name="object_details_back_button">Back</string>
+    <string name="object_details_not_found">This object could not be found.</string>
+    <string name="object_details_image_count_label">Image Count</string>
+    <string name="object_details_created_label">Created</string>
+    <string name="object_details_recognition_label">Recognition</string>
+    <string name="object_details_recognition_enabled">Enabled</string>
+    <string name="object_details_recognition_disabled">Disabled</string>
+    <string name="object_details_future_ai_title">Future AI Information</string>
+    <string name="object_details_future_ai_description">AI-powered recognition insights will appear here in a future phase.</string>
 
     <!-- Teaching screen (placeholder) -->
     <string name="teaching_title">Teaching</string>
