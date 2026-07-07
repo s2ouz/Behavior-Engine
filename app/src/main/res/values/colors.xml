@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors ui.theme.Color.kt so the XML window theme matches the Compose dark theme. -->
+    <color name="background_dark">#FF0E0E12</color>
+    <color name="accent">#FF6C63FF</color>
+</resources>

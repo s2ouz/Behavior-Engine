@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Behavior Engine</string>
+
+    <!-- Home screen -->
+    <string name="home_version_label">Version %1$s</string>
+    <string name="home_status_label">Engine Status</string>
+    <string name="home_phase_label">Current Phase</string>
+    <string name="home_start_button">Start Engine</string>
+    <string name="home_stop_button">Stop Engine</string>
+    <string name="home_running_time_label">Running Time</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_placeholder">Settings will be available in a future phase.</string>
+</resources>
