@@ -1,90 +1,153 @@
 package com.behaviorengine.engine
 
+import com.behaviorengine.core.common.ConfigManager
 import com.behaviorengine.core.common.LoggerManager
+import com.behaviorengine.core.domain.engine.EngineClock
+import com.behaviorengine.core.domain.engine.EngineError
+import com.behaviorengine.core.domain.engine.EngineEvent
+import com.behaviorengine.core.domain.engine.EngineLifecycleManager
+import com.behaviorengine.core.domain.engine.EngineLoop
 import com.behaviorengine.core.domain.engine.EngineManager
+import com.behaviorengine.core.domain.engine.EngineModule
 import com.behaviorengine.core.domain.engine.EngineState
 import com.behaviorengine.core.domain.engine.EngineStatus
+import com.behaviorengine.core.domain.engine.EventBus
+import com.behaviorengine.core.domain.engine.ModuleRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Real implementation of [EngineManager].
+ * Real implementation of [EngineManager] — the orchestrator that composes every subsystem this
+ * phase introduces: [EngineLifecycleManager] for valid state transitions, [EngineClock] for
+ * timing, [EngineLoop] for the tick coroutine, and [ModuleRegistry] for fanning lifecycle calls
+ * out to registered [EngineModule]s. No subsystem talks to another directly — they only know
+ * about [EventBus] — so this class is the one place that knows the *order* things happen in.
  *
- * This is the orchestrator future phases will wire vision/recognition/world/behavior modules
- * into (start() will initialize them, stop() will tear them down). For this foundation phase
- * there is nothing to orchestrate yet, so lifecycle methods only manage [EngineStatus] and a
- * running-time clock — enough to prove the StateFlow -> ViewModel -> Compose UI pipeline works
- * end to end without hardcoding any UI-side assumptions about the engine's internals.
+ * A module throwing during any lifecycle call is treated as a real engine failure: it's caught,
+ * wrapped in [EngineError.ModuleError], published, and forces [EngineStatus.ERROR] via
+ * [EngineLifecycleManager.forceError] rather than crashing the app or leaving the engine stuck
+ * mid-transition.
  */
 @Singleton
 class EngineManagerImpl @Inject constructor(
+    private val lifecycleManager: EngineLifecycleManager,
+    private val clock: EngineClock,
+    private val loop: EngineLoop,
+    private val moduleRegistry: ModuleRegistry,
+    private val eventBus: EventBus,
+    private val configManager: ConfigManager,
     private val loggerManager: LoggerManager
 ) : EngineManager {
 
-    private val _engineState = MutableStateFlow(EngineState())
-    override val engineState: StateFlow<EngineState> = _engineState.asStateFlow()
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var clockJob: Job? = null
 
-    override fun start() {
-        if (_engineState.value.status !in STARTABLE_STATUSES) return
-        loggerManager.i(TAG, "Engine starting")
-        _engineState.update { it.copy(status = EngineStatus.STARTING, runningTimeMillis = 0L) }
-        _engineState.update { it.copy(status = EngineStatus.RUNNING) }
-        startClock()
+    override val engineState: StateFlow<EngineState> = combine(
+        lifecycleManager.status,
+        clock.snapshot
+    ) { status, clockSnapshot ->
+        EngineState(
+            status = status,
+            currentTick = clockSnapshot.currentTick,
+            currentFps = clockSnapshot.currentFps,
+            runningTimeMillis = clockSnapshot.runningTimeMillis,
+            uptimeMillis = clockSnapshot.uptimeMillis,
+            loadedModules = moduleRegistry.getAllModules().map { it.id }
+        )
+    }.stateIn(scope, SharingStarted.Eagerly, EngineState())
+
+    override fun initialize() {
+        if (!lifecycleManager.transitionTo(EngineStatus.INITIALIZING)) return
+        val succeeded = runModules("initialize", moduleRegistry.getAllModules()) { it.initialize() }
+        if (succeeded) lifecycleManager.transitionTo(EngineStatus.READY)
     }
 
-    override fun stop() {
-        if (_engineState.value.status == EngineStatus.OFFLINE) return
-        loggerManager.i(TAG, "Engine stopping")
-        _engineState.update { it.copy(status = EngineStatus.STOPPING) }
-        stopClock()
-        _engineState.update { it.copy(status = EngineStatus.OFFLINE, runningTimeMillis = 0L) }
+    override fun start() {
+        if (!lifecycleManager.transitionTo(EngineStatus.STARTING)) return
+        val succeeded = runModules("start", moduleRegistry.getActiveModules()) { it.start() }
+        if (!succeeded) return
+        clock.onRunningStateChanged(isRunning = true)
+        loop.start(configManager.engineConfig.value.targetTickRate) { onTick() }
+        lifecycleManager.transitionTo(EngineStatus.RUNNING)
     }
 
     override fun pause() {
-        if (_engineState.value.status != EngineStatus.RUNNING) return
-        loggerManager.i(TAG, "Engine paused")
-        stopClock()
-        _engineState.update { it.copy(status = EngineStatus.PAUSED) }
+        if (!lifecycleManager.transitionTo(EngineStatus.PAUSING)) return
+        loop.stop()
+        clock.onRunningStateChanged(isRunning = false)
+        val succeeded = runModules("pause", moduleRegistry.getActiveModules()) { it.pause() }
+        if (succeeded) lifecycleManager.transitionTo(EngineStatus.PAUSED)
     }
 
     override fun resume() {
-        if (_engineState.value.status != EngineStatus.PAUSED) return
-        loggerManager.i(TAG, "Engine resumed")
-        _engineState.update { it.copy(status = EngineStatus.RUNNING) }
-        startClock()
+        if (!lifecycleManager.transitionTo(EngineStatus.RESUMING)) return
+        val succeeded = runModules("resume", moduleRegistry.getActiveModules()) { it.resume() }
+        if (!succeeded) return
+        clock.onRunningStateChanged(isRunning = true)
+        loop.start(configManager.engineConfig.value.targetTickRate) { onTick() }
+        lifecycleManager.transitionTo(EngineStatus.RUNNING)
     }
 
-    private fun startClock() {
-        clockJob?.cancel()
-        clockJob = scope.launch {
-            while (true) {
-                delay(CLOCK_TICK_MILLIS)
-                _engineState.update { it.copy(runningTimeMillis = it.runningTimeMillis + CLOCK_TICK_MILLIS) }
+    override fun stop() {
+        if (!lifecycleManager.transitionTo(EngineStatus.STOPPING)) return
+        loop.stop()
+        clock.onRunningStateChanged(isRunning = false)
+        val succeeded = runModules("stop", moduleRegistry.getActiveModules()) { it.stop() }
+        clock.onStopped()
+        if (succeeded) lifecycleManager.transitionTo(EngineStatus.STOPPED)
+    }
+
+    override fun reset() {
+        val current = lifecycleManager.status.value
+        if (current != EngineStatus.STOPPED && current != EngineStatus.ERROR) return
+        runModules("release", moduleRegistry.getAllModules()) { it.release() }
+        clock.reset()
+        lifecycleManager.transitionTo(EngineStatus.OFFLINE)
+    }
+
+    private suspend fun onTick() {
+        clock.tick()
+        val snapshot = clock.snapshot.value
+        loggerManager.performance(TAG, "tick=${snapshot.currentTick} fps=${"%.1f".format(snapshot.currentFps)}")
+        eventBus.publish(EngineEvent.Performance(tick = snapshot.currentTick, fps = snapshot.currentFps))
+
+        val succeeded = runModules("update", moduleRegistry.getActiveModules()) { it.update() }
+        if (!succeeded) loop.stop()
+    }
+
+    /**
+     * Runs [action] against each module in priority order, isolating failures per module so one
+     * broken module produces a precise [EngineError.ModuleError] instead of an opaque crash.
+     * Returns false (and forces ERROR) on the first failure, skipping the remaining modules.
+     */
+    private inline fun runModules(
+        stage: String,
+        modules: List<EngineModule>,
+        action: (EngineModule) -> Unit
+    ): Boolean {
+        for (module in modules) {
+            try {
+                action(module)
+            } catch (t: Throwable) {
+                val error = EngineError.ModuleError(
+                    moduleId = module.id,
+                    message = "Module '${module.id}' failed during $stage: ${t.message}"
+                )
+                loggerManager.e(TAG, error.message, t)
+                lifecycleManager.forceError(error)
+                return false
             }
         }
-    }
-
-    private fun stopClock() {
-        clockJob?.cancel()
-        clockJob = null
+        return true
     }
 
     private companion object {
         const val TAG = "EngineManager"
-        const val CLOCK_TICK_MILLIS = 1000L
-        val STARTABLE_STATUSES = setOf(EngineStatus.OFFLINE, EngineStatus.ERROR)
     }
 }

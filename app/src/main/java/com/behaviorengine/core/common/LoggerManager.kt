@@ -13,6 +13,10 @@ import javax.inject.Singleton
  * Deliberately a plain injectable class rather than a Kotlin `object` singleton: this project
  * standardizes on Hilt-provided dependencies (see [com.behaviorengine.di.AppModule]) so every
  * manager, including this one, can be swapped for a fake in tests.
+ *
+ * File logging (persisting these lines to disk for later export) is intentionally not wired up
+ * yet — every call already funnels through this one class, so that only needs a new tree
+ * planted in [init] when a future phase needs it, not changes anywhere else.
  */
 @Singleton
 class LoggerManager @Inject constructor() {
@@ -42,5 +46,14 @@ class LoggerManager @Inject constructor() {
 
     fun e(tag: String, message: String, throwable: Throwable? = null) {
         Timber.tag(tag).e(throwable, message)
+    }
+
+    /** Per-tick/engine-loop timing lines; tagged distinctly so they can be filtered out in logcat. */
+    fun performance(tag: String, message: String) {
+        Timber.tag("$tag$PERFORMANCE_TAG_SUFFIX").v(message)
+    }
+
+    private companion object {
+        const val PERFORMANCE_TAG_SUFFIX = "/Perf"
     }
 }

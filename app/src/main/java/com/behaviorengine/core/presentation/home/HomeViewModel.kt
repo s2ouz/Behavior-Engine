@@ -28,11 +28,27 @@ class HomeViewModel @Inject constructor(
         initialValue = EngineState()
     )
 
+    fun onInitializeClicked() {
+        engineManager.initialize()
+    }
+
     fun onStartClicked() {
         engineManager.start()
     }
 
+    fun onPauseClicked() {
+        engineManager.pause()
+    }
+
+    fun onResumeClicked() {
+        engineManager.resume()
+    }
+
     fun onStopClicked() {
         engineManager.stop()
+    }
+
+    fun onResetClicked() {
+        engineManager.reset()
     }
 }

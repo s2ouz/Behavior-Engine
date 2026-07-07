@@ -3,27 +3,39 @@ package com.behaviorengine.core.domain.engine
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Domain-layer contract for controlling the engine's lifecycle.
+ * Domain-layer facade for controlling the engine. This is the *only* engine type the
+ * presentation layer (ViewModels) is allowed to depend on — everything this phase adds
+ * ([EngineLifecycleManager], [EngineClock], [EngineLoop], [ModuleRegistry], [EventBus],
+ * [EngineObserver]) is internal machinery [com.behaviorengine.engine.EngineManagerImpl]
+ * composes behind this one contract, so a UI change never needs to know that composition grew.
  *
  * Deliberately Android-framework-free (no Context, no Application dependency) so it can be
- * unit tested and, longer term, so the domain layer never depends on how the engine is actually
- * implemented. [com.behaviorengine.engine.EngineManagerImpl] is where real behavior lives; this
- * interface is what the rest of the app (ViewModels, future automation code) is allowed to see.
+ * unit tested and so the domain layer never depends on how the engine is actually implemented.
+ *
+ * Method names mirror [EngineStatus] one-for-one: [initialize] drives OFFLINE→READY,
+ * [start] drives READY→RUNNING, [pause]/[resume] toggle RUNNING↔PAUSED, [stop] drives
+ * RUNNING/PAUSED→STOPPED, and [reset] drives STOPPED/ERROR back to OFFLINE.
  */
 interface EngineManager {
 
     /** Continuously observable snapshot of the engine; see [EngineState]. */
     val engineState: StateFlow<EngineState>
 
-    /** Transitions the engine from OFFLINE towards RUNNING. */
+    /** Prepares registered modules (OFFLINE → INITIALIZING → READY). */
+    fun initialize()
+
+    /** Begins ticking (READY → STARTING → RUNNING). */
     fun start()
 
-    /** Transitions the engine from RUNNING/PAUSED towards OFFLINE. */
-    fun stop()
-
-    /** Suspends engine activity without a full stop; only valid while RUNNING. */
+    /** Suspends ticking without a full stop (RUNNING → PAUSING → PAUSED). */
     fun pause()
 
-    /** Resumes engine activity after a [pause]; only valid while PAUSED. */
+    /** Resumes ticking after a [pause] (PAUSED → RESUMING → RUNNING). */
     fun resume()
+
+    /** Halts ticking (RUNNING/PAUSED → STOPPING → STOPPED). */
+    fun stop()
+
+    /** Releases modules and clears the clock, returning to OFFLINE (STOPPED/ERROR → OFFLINE). */
+    fun reset()
 }

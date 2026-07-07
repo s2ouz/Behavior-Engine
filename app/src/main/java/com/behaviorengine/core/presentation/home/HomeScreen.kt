@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.behaviorengine.R
@@ -32,24 +34,33 @@ import com.behaviorengine.ui.theme.StatusError
 import com.behaviorengine.ui.theme.StatusIdle
 import com.behaviorengine.ui.theme.StatusRunning
 import com.behaviorengine.utils.TimeFormatter
+import java.util.Locale
 
-/** The only functional screen in the Foundation phase: displays and drives [EngineManager][com.behaviorengine.core.domain.engine.EngineManager]. */
+/** The only functional screen in this phase: displays and drives [com.behaviorengine.core.domain.engine.EngineManager]. */
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
     val engineState by viewModel.engineState.collectAsState()
 
     HomeContent(
         engineState = engineState,
+        onInitializeClicked = viewModel::onInitializeClicked,
         onStartClicked = viewModel::onStartClicked,
-        onStopClicked = viewModel::onStopClicked
+        onPauseClicked = viewModel::onPauseClicked,
+        onResumeClicked = viewModel::onResumeClicked,
+        onStopClicked = viewModel::onStopClicked,
+        onResetClicked = viewModel::onResetClicked
     )
 }
 
 @Composable
 private fun HomeContent(
     engineState: EngineState,
+    onInitializeClicked: () -> Unit,
     onStartClicked: () -> Unit,
-    onStopClicked: () -> Unit
+    onPauseClicked: () -> Unit,
+    onResumeClicked: () -> Unit,
+    onStopClicked: () -> Unit,
+    onResetClicked: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -74,43 +85,117 @@ private fun HomeContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             InfoRow(
                 label = stringResource(R.string.home_status_label),
                 value = engineState.status.name,
                 valueColor = engineState.status.toDisplayColor()
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
                 label = stringResource(R.string.home_phase_label),
                 value = engineState.currentPhase
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            InfoRow(
+                label = stringResource(R.string.home_tick_label),
+                value = engineState.currentTick.toString()
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            InfoRow(
+                label = stringResource(R.string.home_fps_label),
+                value = String.format(Locale.US, "%.1f", engineState.currentFps)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            InfoRow(
+                label = stringResource(R.string.home_running_time_label),
+                value = TimeFormatter.formatElapsed(engineState.runningTimeMillis)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            InfoRow(
+                label = stringResource(R.string.home_modules_label),
+                value = engineState.loadedModules.takeIf { it.isNotEmpty() }
+                    ?.joinToString(", ")
+                    ?: stringResource(R.string.home_modules_empty)
+            )
 
-            if (engineState.status == EngineStatus.RUNNING) {
-                Spacer(modifier = Modifier.height(16.dp))
-                InfoRow(
-                    label = stringResource(R.string.home_running_time_label),
-                    value = TimeFormatter.formatElapsed(engineState.runningTimeMillis)
-                )
+            Spacer(modifier = Modifier.height(40.dp))
+
+            EngineControls(
+                status = engineState.status,
+                onInitializeClicked = onInitializeClicked,
+                onStartClicked = onStartClicked,
+                onPauseClicked = onPauseClicked,
+                onResumeClicked = onResumeClicked,
+                onStopClicked = onStopClicked,
+                onResetClicked = onResetClicked
+            )
+        }
+    }
+}
+
+@Composable
+private fun EngineControls(
+    status: EngineStatus,
+    onInitializeClicked: () -> Unit,
+    onStartClicked: () -> Unit,
+    onPauseClicked: () -> Unit,
+    onResumeClicked: () -> Unit,
+    onStopClicked: () -> Unit,
+    onResetClicked: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = onInitializeClicked,
+                enabled = status == EngineStatus.OFFLINE
+            ) {
+                Text(stringResource(R.string.home_initialize_button))
             }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(
-                    onClick = onStartClicked,
-                    enabled = engineState.status == EngineStatus.OFFLINE || engineState.status == EngineStatus.ERROR
-                ) {
-                    Text(stringResource(R.string.home_start_button))
-                }
-
-                OutlinedButton(
-                    onClick = onStopClicked,
-                    enabled = engineState.status == EngineStatus.RUNNING
-                ) {
-                    Text(stringResource(R.string.home_stop_button))
-                }
+            Button(
+                modifier = Modifier.weight(1f),
+                onClick = onStartClicked,
+                enabled = status == EngineStatus.READY
+            ) {
+                Text(stringResource(R.string.home_start_button))
+            }
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = onPauseClicked,
+                enabled = status == EngineStatus.RUNNING
+            ) {
+                Text(stringResource(R.string.home_pause_button))
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = onResumeClicked,
+                enabled = status == EngineStatus.PAUSED
+            ) {
+                Text(stringResource(R.string.home_resume_button))
+            }
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = onStopClicked,
+                enabled = status == EngineStatus.RUNNING || status == EngineStatus.PAUSED
+            ) {
+                Text(stringResource(R.string.home_stop_button))
+            }
+            OutlinedButton(
+                modifier = Modifier.weight(1f),
+                onClick = onResetClicked,
+                enabled = status == EngineStatus.STOPPED || status == EngineStatus.ERROR
+            ) {
+                Text(stringResource(R.string.home_reset_button))
             }
         }
     }
@@ -123,7 +208,8 @@ private fun InfoRow(
     valueColor: Color = MaterialTheme.colorScheme.onBackground
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -131,12 +217,13 @@ private fun InfoRow(
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
-            color = valueColor
+            color = valueColor,
+            textAlign = TextAlign.End
         )
     }
 }

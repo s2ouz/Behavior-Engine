@@ -6,9 +6,17 @@
     <string name="home_version_label">Version %1$s</string>
     <string name="home_status_label">Engine Status</string>
     <string name="home_phase_label">Current Phase</string>
-    <string name="home_start_button">Start Engine</string>
-    <string name="home_stop_button">Stop Engine</string>
+    <string name="home_tick_label">Current Tick</string>
+    <string name="home_fps_label">Current FPS</string>
     <string name="home_running_time_label">Running Time</string>
+    <string name="home_modules_label">Loaded Modules</string>
+    <string name="home_modules_empty">None</string>
+    <string name="home_initialize_button">Initialize</string>
+    <string name="home_start_button">Start</string>
+    <string name="home_pause_button">Pause</string>
+    <string name="home_resume_button">Resume</string>
+    <string name="home_stop_button">Stop</string>
+    <string name="home_reset_button">Reset</string>
 
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
