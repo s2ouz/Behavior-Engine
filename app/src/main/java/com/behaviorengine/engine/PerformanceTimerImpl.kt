@@ -9,6 +9,14 @@ import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Real implementation of [PerformanceTimer]. [tickCount] and [tickDurationSumMillis] are plain
+ * `var`s, not atomics — safe only because [measureTick] is exclusively called from
+ * [com.behaviorengine.engine.RuntimeControllerImpl]'s single sequential tick loop
+ * ([com.behaviorengine.engine.EngineLoopImpl] never runs two ticks concurrently), and
+ * [measureStartup] can only run once per session, before RUNNING (and thus before any tick)
+ * is reachable. If a future phase ever lets ticks overlap, these need a lock or `AtomicLong`.
+ */
 @Singleton
 class PerformanceTimerImpl @Inject constructor() : PerformanceTimer {
 

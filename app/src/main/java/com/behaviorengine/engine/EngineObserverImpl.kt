@@ -4,9 +4,8 @@ import com.behaviorengine.core.domain.engine.EngineEvent
 import com.behaviorengine.core.domain.engine.EngineObserver
 import com.behaviorengine.core.domain.engine.EngineObserverSnapshot
 import com.behaviorengine.core.domain.engine.EventBus
+import com.behaviorengine.di.EngineCoroutineScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,20 +16,19 @@ import javax.inject.Singleton
 
 /**
  * The reference [EventBus] subscriber: collects every [EngineEvent] for the lifetime of the
- * process and folds it into a running [EngineObserverSnapshot]. Runs on its own scope rather
- * than piggybacking on [com.behaviorengine.engine.RuntimeControllerImpl] because observation
- * should keep working even if the engine itself is OFFLINE or has hit ERROR — it's watching the
- * engine, not part of it.
+ * process and folds it into a running [EngineObserverSnapshot]. Collects on the shared
+ * [EngineCoroutineScope] rather than being driven by
+ * [com.behaviorengine.engine.RuntimeControllerImpl] because observation should keep working even
+ * if the engine itself is OFFLINE or has hit ERROR — it's watching the engine, not part of it.
  */
 @Singleton
 class EngineObserverImpl @Inject constructor(
-    eventBus: EventBus
+    eventBus: EventBus,
+    @EngineCoroutineScope scope: CoroutineScope
 ) : EngineObserver {
 
     private val _snapshot = MutableStateFlow(EngineObserverSnapshot())
     override val snapshot: StateFlow<EngineObserverSnapshot> = _snapshot.asStateFlow()
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
         scope.launch {

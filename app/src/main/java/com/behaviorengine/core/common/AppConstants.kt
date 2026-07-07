@@ -19,11 +19,18 @@ object AppConstants {
      * engine (vision/behavior/automation) is expected to version independently of the
      * surrounding app shell as it matures.
      */
-    const val ENGINE_VERSION: String = "0.3.0"
+    const val ENGINE_VERSION: String = "0.5.0"
 
     /** Human-readable label for the development phase currently being built, shown in the UI. */
-    const val CURRENT_PHASE: String = "Runtime Foundation"
+    const val CURRENT_PHASE: String = "Core Prototype Freeze"
 
     /** True only in debug builds; gates verbose logging and future debug-only UI affordances. */
     val DEBUG_MODE: Boolean = BuildConfig.DEBUG
+
+    /**
+     * Milliseconds in one second. Shared so [com.behaviorengine.core.domain.engine.TickRate],
+     * [com.behaviorengine.engine.EngineClockImpl], and [com.behaviorengine.utils.TimeFormatter]
+     * can't quietly drift apart by each hardcoding their own copy of the same conversion factor.
+     */
+    const val MILLIS_PER_SECOND: Long = 1000L
 }

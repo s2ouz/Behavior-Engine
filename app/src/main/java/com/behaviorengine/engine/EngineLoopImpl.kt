@@ -2,20 +2,21 @@ package com.behaviorengine.engine
 
 import com.behaviorengine.core.domain.engine.EngineLoop
 import com.behaviorengine.core.domain.engine.TickRate
+import com.behaviorengine.di.EngineCoroutineScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Real implementation of [EngineLoop]; see that interface for the `while (isActive)` rationale. */
 @Singleton
-class EngineLoopImpl @Inject constructor() : EngineLoop {
+class EngineLoopImpl @Inject constructor(
+    @EngineCoroutineScope private val scope: CoroutineScope
+) : EngineLoop {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var job: Job? = null
 
     override val isRunning: Boolean

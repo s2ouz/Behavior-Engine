@@ -12,6 +12,12 @@ import com.behaviorengine.navigation.BehaviorEngineNavGraph
 import com.behaviorengine.ui.theme.BehaviorEngineTheme
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Sole Activity in the app. Hosts the Compose tree and nothing else — it doesn't touch
+ * [com.behaviorengine.core.domain.engine.EngineManager] or any engine state directly, since the
+ * engine's own coroutine scope and (from v0.3.0) [com.behaviorengine.services.EngineService]
+ * already keep it running independently of this Activity's lifecycle.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 

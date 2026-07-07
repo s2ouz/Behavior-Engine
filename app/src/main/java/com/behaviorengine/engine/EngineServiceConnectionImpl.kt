@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Real implementation of [EngineServiceConnection]; see that interface for the ownership rules. */
 @Singleton
 class EngineServiceConnectionImpl @Inject constructor(
     @ApplicationContext private val context: Context,

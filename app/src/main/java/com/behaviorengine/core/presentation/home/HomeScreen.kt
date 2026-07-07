@@ -33,11 +33,17 @@ import com.behaviorengine.core.domain.engine.EngineSession
 import com.behaviorengine.core.domain.engine.EngineState
 import com.behaviorengine.core.domain.engine.EngineStatus
 import com.behaviorengine.core.domain.engine.PerformanceSnapshot
+import com.behaviorengine.core.domain.engine.canInitialize
+import com.behaviorengine.core.domain.engine.canPause
+import com.behaviorengine.core.domain.engine.canReset
+import com.behaviorengine.core.domain.engine.canResume
+import com.behaviorengine.core.domain.engine.canStart
+import com.behaviorengine.core.domain.engine.canStop
 import com.behaviorengine.ui.theme.StatusError
 import com.behaviorengine.ui.theme.StatusIdle
 import com.behaviorengine.ui.theme.StatusRunning
+import com.behaviorengine.utils.NumberFormatter
 import com.behaviorengine.utils.TimeFormatter
-import java.util.Locale
 
 /** The only functional screen in this phase: displays and drives [com.behaviorengine.core.domain.engine.EngineManager]. */
 @Composable
@@ -132,7 +138,7 @@ private fun HomeContent(
             Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
                 label = stringResource(R.string.home_avg_tick_time_label),
-                value = String.format(Locale.US, "%.2f ms", performance.averageTickDurationMillis)
+                value = NumberFormatter.formatMillis(performance.averageTickDurationMillis)
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -168,21 +174,21 @@ private fun EngineControls(
             Button(
                 modifier = Modifier.weight(1f),
                 onClick = onInitializeClicked,
-                enabled = status == EngineStatus.OFFLINE
+                enabled = status.canInitialize()
             ) {
                 Text(stringResource(R.string.home_initialize_button))
             }
             Button(
                 modifier = Modifier.weight(1f),
                 onClick = onStartClicked,
-                enabled = status == EngineStatus.READY
+                enabled = status.canStart()
             ) {
                 Text(stringResource(R.string.home_start_button))
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 onClick = onPauseClicked,
-                enabled = status == EngineStatus.RUNNING
+                enabled = status.canPause()
             ) {
                 Text(stringResource(R.string.home_pause_button))
             }
@@ -194,21 +200,21 @@ private fun EngineControls(
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 onClick = onResumeClicked,
-                enabled = status == EngineStatus.PAUSED
+                enabled = status.canResume()
             ) {
                 Text(stringResource(R.string.home_resume_button))
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 onClick = onStopClicked,
-                enabled = status == EngineStatus.RUNNING || status == EngineStatus.PAUSED
+                enabled = status.canStop()
             ) {
                 Text(stringResource(R.string.home_stop_button))
             }
             OutlinedButton(
                 modifier = Modifier.weight(1f),
                 onClick = onResetClicked,
-                enabled = status == EngineStatus.STOPPED || status == EngineStatus.ERROR
+                enabled = status.canReset()
             ) {
                 Text(stringResource(R.string.home_reset_button))
             }

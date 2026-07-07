@@ -1,5 +1,6 @@
 package com.behaviorengine.utils
 
+import com.behaviorengine.core.common.AppConstants
 import java.util.Locale
 
 /**
@@ -11,7 +12,7 @@ object TimeFormatter {
 
     /** Formats milliseconds as `HH:mm:ss`, e.g. the engine's running time on the Home screen. */
     fun formatElapsed(millis: Long): String {
-        val totalSeconds = millis / 1000
+        val totalSeconds = millis / AppConstants.MILLIS_PER_SECOND
         val hours = totalSeconds / 3600
         val minutes = (totalSeconds % 3600) / 60
         val seconds = totalSeconds % 60

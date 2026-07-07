@@ -1,5 +1,6 @@
 package com.behaviorengine.engine
 
+import com.behaviorengine.core.common.AppConstants
 import com.behaviorengine.core.domain.engine.EngineClock
 import com.behaviorengine.core.domain.engine.EngineClockSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Real implementation of [EngineClock]; see that interface for the field-by-field contract. */
 @Singleton
 class EngineClockImpl @Inject constructor() : EngineClock {
 
@@ -22,7 +24,7 @@ class EngineClockImpl @Inject constructor() : EngineClock {
         val now = System.currentTimeMillis()
         val delta = if (lastTickAtMillis == 0L) 0L else now - lastTickAtMillis
         lastTickAtMillis = now
-        val fps = if (delta > 0) MILLIS_PER_SECOND / delta.toDouble() else 0.0
+        val fps = if (delta > 0) AppConstants.MILLIS_PER_SECOND / delta.toDouble() else 0.0
 
         _snapshot.update { current ->
             current.copy(
@@ -50,9 +52,5 @@ class EngineClockImpl @Inject constructor() : EngineClock {
         lastTickAtMillis = 0L
         isRunning = false
         _snapshot.value = EngineClockSnapshot()
-    }
-
-    private companion object {
-        const val MILLIS_PER_SECOND = 1000L
     }
 }

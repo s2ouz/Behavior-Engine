@@ -1,25 +1,31 @@
 package com.behaviorengine.di
 
 import com.behaviorengine.core.domain.engine.EngineClock
+import com.behaviorengine.core.domain.engine.EngineDiagnosticsManager
 import com.behaviorengine.core.domain.engine.EngineHealthMonitor
 import com.behaviorengine.core.domain.engine.EngineLifecycleManager
 import com.behaviorengine.core.domain.engine.EngineLoop
 import com.behaviorengine.core.domain.engine.EngineManager
+import com.behaviorengine.core.domain.engine.EngineMetrics
 import com.behaviorengine.core.domain.engine.EngineObserver
 import com.behaviorengine.core.domain.engine.EngineServiceConnection
 import com.behaviorengine.core.domain.engine.EngineStateStore
+import com.behaviorengine.core.domain.engine.EngineValidator
 import com.behaviorengine.core.domain.engine.EventBus
 import com.behaviorengine.core.domain.engine.ModuleRegistry
 import com.behaviorengine.core.domain.engine.PerformanceTimer
 import com.behaviorengine.core.domain.engine.RuntimeController
 import com.behaviorengine.engine.EngineClockImpl
+import com.behaviorengine.engine.EngineDiagnosticsManagerImpl
 import com.behaviorengine.engine.EngineHealthMonitorImpl
 import com.behaviorengine.engine.EngineLifecycleManagerImpl
 import com.behaviorengine.engine.EngineLoopImpl
 import com.behaviorengine.engine.EngineManagerImpl
+import com.behaviorengine.engine.EngineMetricsImpl
 import com.behaviorengine.engine.EngineObserverImpl
 import com.behaviorengine.engine.EngineServiceConnectionImpl
 import com.behaviorengine.engine.EngineStateStoreImpl
+import com.behaviorengine.engine.EngineValidatorImpl
 import com.behaviorengine.engine.EventBusImpl
 import com.behaviorengine.engine.ModuleRegistryImpl
 import com.behaviorengine.engine.PerformanceTimerImpl
@@ -88,4 +94,16 @@ abstract class EngineDiModule {
     @Binds
     @Singleton
     abstract fun bindEngineStateStore(impl: EngineStateStoreImpl): EngineStateStore
+
+    @Binds
+    @Singleton
+    abstract fun bindEngineMetrics(impl: EngineMetricsImpl): EngineMetrics
+
+    @Binds
+    @Singleton
+    abstract fun bindEngineValidator(impl: EngineValidatorImpl): EngineValidator
+
+    @Binds
+    @Singleton
+    abstract fun bindEngineDiagnosticsManager(impl: EngineDiagnosticsManagerImpl): EngineDiagnosticsManager
 }

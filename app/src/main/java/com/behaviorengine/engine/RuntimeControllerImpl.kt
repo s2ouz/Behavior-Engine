@@ -13,6 +13,8 @@ import com.behaviorengine.core.domain.engine.EventBus
 import com.behaviorengine.core.domain.engine.ModuleRegistry
 import com.behaviorengine.core.domain.engine.PerformanceTimer
 import com.behaviorengine.core.domain.engine.RuntimeController
+import com.behaviorengine.core.domain.engine.canReset
+import com.behaviorengine.utils.NumberFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -80,8 +82,7 @@ class RuntimeControllerImpl @Inject constructor(
     }
 
     override fun reset(): Boolean {
-        val current = lifecycleManager.status.value
-        if (current != EngineStatus.STOPPED && current != EngineStatus.ERROR) return false
+        if (!lifecycleManager.status.value.canReset()) return false
         runModules("release", moduleRegistry.getAllModules()) { it.release() }
         clock.reset()
         performanceTimer.reset()
@@ -96,8 +97,15 @@ class RuntimeControllerImpl @Inject constructor(
 
         val snapshot = clock.snapshot.value
         performanceTimer.recordRuntimeDuration(snapshot.uptimeMillis)
-        loggerManager.performance(TAG, "tick=${snapshot.currentTick} fps=${"%.1f".format(snapshot.currentFps)}")
         eventBus.publish(EngineEvent.Performance(tick = snapshot.currentTick, fps = snapshot.currentFps))
+
+        // Logged at most once per second regardless of tick rate — at FPS_120 a per-tick log
+        // line would mean 120 logcat writes/sec for no extra signal; the EventBus publish above
+        // already carries every tick's reading for anything that needs the full-resolution data.
+        val ticksPerSecond = configManager.engineConfig.value.targetTickRate.fps.toLong()
+        if (snapshot.currentTick % ticksPerSecond == 0L) {
+            loggerManager.performance(TAG, "tick=${snapshot.currentTick} fps=${NumberFormatter.formatFps(snapshot.currentFps)}")
+        }
 
         if (!succeeded) loop.stop()
     }

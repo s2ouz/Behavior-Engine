@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Real implementation of [EventBus]; see that interface for why there's no listener API. */
 @Singleton
 class EventBusImpl @Inject constructor() : EventBus {
 

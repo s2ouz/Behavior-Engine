@@ -9,6 +9,13 @@ import com.behaviorengine.core.domain.engine.ModuleRegistry
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Real implementation of [ModuleRegistry]. All mutation and iteration of [entries] is
+ * synchronized on [lock]: [RuntimeControllerImpl] reads [getActiveModules]/[getAllModules] from
+ * the tick loop while a future module could in principle register/enable/disable itself from a
+ * different thread, so the map itself needs a single consistent view rather than relying on
+ * every caller happening to be on the same dispatcher.
+ */
 @Singleton
 class ModuleRegistryImpl @Inject constructor(
     private val eventBus: EventBus,

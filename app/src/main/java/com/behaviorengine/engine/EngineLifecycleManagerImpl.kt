@@ -50,7 +50,7 @@ class EngineLifecycleManagerImpl @Inject constructor(
     }
 
     private companion object {
-        const val TAG = "EngineLifecycle"
+        const val TAG = "EngineLifecycleManager"
 
         /**
          * Every legal next-state for each current state. Absence of an entry, or absence of a

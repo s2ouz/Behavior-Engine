@@ -13,9 +13,8 @@ import com.behaviorengine.core.domain.engine.EventBus
 import com.behaviorengine.core.domain.engine.ModuleRegistry
 import com.behaviorengine.core.domain.engine.PerformanceSnapshot
 import com.behaviorengine.core.domain.engine.PerformanceTimer
+import com.behaviorengine.di.EngineCoroutineScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,10 +46,9 @@ class EngineStateStoreImpl @Inject constructor(
     private val moduleRegistry: ModuleRegistry,
     engineHealthMonitor: EngineHealthMonitor,
     performanceTimer: PerformanceTimer,
-    eventBus: EventBus
+    eventBus: EventBus,
+    @EngineCoroutineScope private val scope: CoroutineScope
 ) : EngineStateStore {
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override val engineState: StateFlow<EngineState> = combine(
         lifecycleManager.status,
