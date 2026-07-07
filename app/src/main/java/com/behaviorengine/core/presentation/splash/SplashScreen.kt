@@ -8,21 +8,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.behaviorengine.core.common.AppConstants
+import com.behaviorengine.navigation.StartDestination
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 
-private const val SPLASH_DISPLAY_MILLIS = 800L
+private const val MINIMUM_DISPLAY_MILLIS = 800L
 
 /**
- * Brief branding screen shown once at cold start before landing on Home. Not a functional
- * screen per this phase's spec — it exists only to prove the navigation graph itself works,
- * ahead of any real splash-time initialization (engine warm-up, settings load) landing here.
+ * Brief branding screen shown once at cold start. Now does real work: waits for
+ * [SplashViewModel] to determine [StartDestination] (first launch vs. returning user) and for a
+ * minimum branding display time, whichever takes longer, then navigates exactly once.
  */
 @Composable
-fun SplashScreen(onSplashFinished: () -> Unit) {
+fun SplashScreen(viewModel: SplashViewModel = hiltViewModel(), onDestinationDetermined: (StartDestination) -> Unit) {
     LaunchedEffect(Unit) {
-        delay(SPLASH_DISPLAY_MILLIS)
-        onSplashFinished()
+        val minimumDisplay = async { delay(MINIMUM_DISPLAY_MILLIS) }
+        val destination = viewModel.startDestination.filterNotNull().first()
+        minimumDisplay.await()
+        onDestinationDetermined(destination)
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

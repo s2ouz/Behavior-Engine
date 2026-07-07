@@ -1,11 +1,11 @@
-# Behavior Engine — v0.5.0 Core Prototype Freeze
+# Behavior Engine — v0.6.0 Product Foundation
 
-A Visual Behavior Engine for Android. v0.1.0 built the architecture shell, v0.2.0 built the
-engine's internal machinery, v0.3.0 made it a real Android background engine. **This phase adds
-no new user-facing features.** It validates, stabilizes, and freezes everything built so far —
-a permanent diagnostics/validation layer, a cleanup pass, and this document — as the official
-baseline every future phase builds on. Still no AI, no screen capture, no Accessibility Service,
-no OCR, and no automation.
+A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine (lifecycle, tick
+loop, modules, background service, diagnostics) — that work is complete and untouched this phase.
+**v0.6.0 starts building the actual product**: first-launch onboarding, a local nickname profile,
+and the real navigation shell (Home hub → Objects / Teaching / Automation / Settings). No visual
+recognition, AI, object detection, Accessibility, or MediaProjection yet — only the UX and product
+flow those features will eventually live inside.
 
 ## Opening the project
 
@@ -20,13 +20,59 @@ version (Gradle 8.9). Regenerate the launcher one of two ways:
 
 Requires JDK 17 and Android SDK Platform 35 (installed via Android Studio's SDK Manager).
 
-## Architecture at a glance
+## Product navigation flow (new in v0.6.0)
 
 ```mermaid
 graph TD
-    Screen["HomeScreen (Compose)"] -->|collectAsState| VM["HomeViewModel"]
-    VM -->|actions| EM["EngineManager (thin facade)"]
-    VM -->|state| Store["EngineStateStore"]
+    Splash["Splash — decides Welcome vs Home"] -->|first launch| Welcome["Welcome — nickname onboarding"]
+    Splash -->|returning user| Home
+    Welcome -->|saveNickname + completeFirstLaunch| Home["Home — greeting + 4 cards"]
+    Home --> Objects["Objects (placeholder)"]
+    Home --> Teaching["Teaching (placeholder)"]
+    Home --> Automation["Automation (placeholder)"]
+    Home --> Settings["Settings (placeholder)"]
+    Settings -.Engine Diagnostics link.-> EngineScreen["EngineScreen — v0.1.0-v0.5.0's engine control screen"]
+```
+
+Only Home and Welcome are fully designed this phase; Objects/Teaching/Automation/Settings are
+simple placeholders (`core/presentation/common/PlaceholderScreen.kt`). `EngineScreen` is
+deliberately *not* part of the main flow — it's the fully-functional engine status/control
+screen from prior phases, relocated (not deleted) so end users of a visual-automation product
+aren't shown raw tick counts by default, while the tested functionality stays reachable from
+Settings instead of becoming dead code.
+
+## Why routing lives in Splash, not MainActivity
+
+`SplashViewModel` reads `UserProfileRepository.awaitProfile()` — a one-shot suspend read — rather
+than the cached `profile: StateFlow<UserProfile>`. That StateFlow's `SharingStarted.Eagerly`
+default means its *very first* value is `UserProfile()` defaults (`hasCompletedFirstLaunch =
+false`) until the real DataStore read lands a moment later; routing off that cached value would
+flash Welcome at a returning user for a frame. `awaitProfile()` exists specifically to give the
+one call site that makes an irreversible navigation decision the *correct* value, not the
+convenient one.
+
+## Local storage: UserProfile
+
+```
+core.domain.profile.UserProfile           // nickname, createdAtMillis, hasCompletedFirstLaunch, reserved
+core.domain.profile.UserProfileRepository // interface: profile, awaitProfile(), saveNickname(), completeFirstLaunch()
+core.data.profile.UserProfileRepositoryImpl // DataStore-backed — the first real use of core.data,
+                                            // reserved since v0.1.0 for exactly this
+```
+
+Backed by its own Preferences DataStore file (`user_profile`, qualified `@ProfileDataStore`),
+separate from `settings/SettingsManager`'s (`behavior_engine_settings`, `@SettingsDataStore`) —
+user identity and app configuration are unrelated concerns that happen to both fit Preferences
+DataStore. No login, no email, no network call: the nickname *is* the entire local identity
+system, per this phase's product vision.
+
+## Engine architecture (unchanged since v0.5.0)
+
+```mermaid
+graph TD
+    EngineScreen["EngineScreen (Compose)"] -->|collectAsState| EVM["EngineViewModel"]
+    EVM -->|actions| EM["EngineManager (thin facade)"]
+    EVM -->|state| Store["EngineStateStore"]
 
     EM --> RC["RuntimeController"]
     EM --> SC["EngineServiceConnection"]
@@ -54,23 +100,30 @@ graph TD
     Health --> Bus
 ```
 
-Every node except `HomeScreen`/`HomeViewModel`/`EngineService` is a framework-free interface in
-`core/domain/engine/` with its real implementation in `engine/`, bound together in
-`di/EngineDiModule.kt`. `HomeViewModel` only ever depends on `EngineManager` (to act) and
-`EngineStateStore` (to observe) — it never reaches into `RuntimeController`, `EngineClock`, or
-any other internal collaborator directly.
+`EngineViewModel`/`EngineScreen` are `HomeViewModel`/`HomeScreen` renamed — same code, same
+tested behavior — since "Home" now names the product's navigation hub instead.
 
 ## Package structure
-
-Unchanged since v0.1.0 — this phase adds files, not new packages:
 
 ```
 com.behaviorengine
 ├── core
 │   ├── common        // App-wide infra: AppConstants, LoggerManager, ConfigManager
-│   ├── data           // Clean Architecture data layer (empty — nothing to back yet)
-│   ├── domain         // Clean Architecture domain layer — every engine contract lives here
-│   └── presentation   // Screens + ViewModels (splash, home, settings)
+│   ├── data
+│   │   └── profile    // UserProfileRepositoryImpl (DataStore) — core.data's first real content
+│   ├── domain
+│   │   ├── engine     // Every engine contract (unchanged since v0.5.0)
+│   │   └── profile    // UserProfile, UserProfileRepository
+│   └── presentation
+│       ├── splash     // Routing: Welcome vs Home
+│       ├── welcome    // Onboarding (new)
+│       ├── home       // Product hub: greeting + 4 cards (new content, same package name)
+│       ├── objects    // Placeholder (new)
+│       ├── teaching   // Placeholder (new)
+│       ├── automation // Placeholder (new)
+│       ├── settings   // Placeholder + Engine Diagnostics link
+│       ├── engine     // EngineScreen/EngineViewModel — formerly core.presentation.home (new)
+│       └── common     // PlaceholderScreen, shared by Objects/Teaching/Automation/Settings
 ├── engine             // Concrete implementations of every core.domain.engine interface
 ├── vision             // (future) screen capture / frame acquisition
 ├── recognition        // (future) OCR + visual element recognition
@@ -81,94 +134,33 @@ com.behaviorengine
 ├── automation         // (future) executes actions against the device
 ├── accessibility      // (future) AccessibilityService integration
 ├── services           // EngineService (foreground host); future AccessibilityService lives here too
-├── settings           // User preference model + DataStore prep (no persistence yet)
+├── settings           // AppSettings model + DataStore prep (no persistence yet — distinct from profile)
 ├── utils              // Small pure-function helpers (time/number formatting)
-├── di                 // Hilt modules
+├── di                 // Hilt modules + qualifiers
 ├── navigation         // Navigation Compose graph + route definitions
 └── ui/theme           // Compose dark theme, typography, color tokens
 ```
 
-## What this phase added: the validation layer
+## Animations
 
-Three new components, all genuinely functional (none are stubs), none exposed as new UI:
+One shared fade+slide transition applied once at the `NavHost` level (`enterTransition` /
+`exitTransition` / `popEnterTransition` / `popExitTransition` in `BehaviorEngineNavGraph.kt`) —
+not per-screen boilerplate. Welcome additionally fades+slides its own content in on first
+composition. Both are deliberately subtle per this phase's spec — no bouncing, no unnecessary
+motion.
 
-- **`EngineMetrics`** — an on-demand, pull-based snapshot (`snapshot(): EngineMetricsSnapshot`)
-  combining every numeric signal (`EngineClock` timing, `PerformanceTimer` profiling,
-  `EngineHealthMonitor` counts) into one object. Deliberately *not* a `StateFlow`: it exists for
-  one-off consumers (a diagnostics dump, a log line, a future test assertion) that just want
-  "the numbers, right now" without subscribing to anything — `EngineStateStore` already covers
-  the continuously-observed case.
-- **`EngineValidator`** — runtime self-checks encoding invariants the engine relies on: no two
-  registered modules sharing an id, an active module always present in the full module list, the
-  configured tick rate resolving to a positive interval, and `EngineHealthMonitor` never
-  reporting the runtime active while the engine isn't alive or the lifecycle is in `ERROR`. Most
-  of these hold by construction today (no real `EngineModule` exists yet to violate the registry
-  invariant) — their value is as a **regression guard**, not evidence something is currently
-  broken.
-- **`EngineDiagnosticsManager`** — bundles `EngineMetrics` + `EngineHealthMonitor` +
-  `EngineValidator` + `EngineObserver` into one `DiagnosticsReport`. `EngineManagerImpl.initialize()`
-  calls it once automatically after a successful boot and logs the result — this is the only new
-  code path this phase adds, and it's a self-check on an *existing* action, not a new feature.
+## Thread safety & cleanup notes (carried forward from v0.5.0, still accurate)
 
-## Cleanup performed this phase
-
-An audit pass (full read of all ~55 Kotlin files) found and fixed:
-
-- **Duplicated `CoroutineScope(SupervisorJob() + Dispatchers.Default)` construction** across four
-  singletons (`EngineLoopImpl`, `EngineObserverImpl`, `EngineStateStoreImpl`,
-  `EngineHealthMonitorImpl`) — replaced with one `@EngineCoroutineScope`-qualified scope provided
-  once in `di/AppModule.kt` and injected into all four. Never explicitly cancelled, by design:
-  it's `@Singleton` in `SingletonComponent`, living exactly as long as the process does, the same
-  reasoning Android's own guidance gives for an application-wide scope.
-- **A real Locale bug**: `RuntimeControllerImpl`'s per-tick fps log used `"%.1f".format(...)`
-  without pinning `Locale.US`, unlike every other formatted value in the app — on a device whose
-  default locale uses `,` as a decimal separator, this could have logged fps as e.g. `9,8`
-  instead of `9.8`. Fixed by routing through the new `utils/NumberFormatter`, alongside the
-  existing `utils/TimeFormatter`.
-- **A duplicated `MILLIS_PER_SECOND = 1000L` constant**, independently declared in `TickRate.kt`
-  and `EngineClockImpl.kt` (plus an unnamed `1000` literal in `TimeFormatter.kt`) — consolidated
-  into `AppConstants.MILLIS_PER_SECOND`, the designated single source of truth for exactly this
-  kind of value.
-- **Duplicated `EngineStatus` button-eligibility logic**, independently hardcoded in both
-  `HomeScreen.kt` (button `enabled` state) and `RuntimeControllerImpl.reset()` (the enforcement
-  guard) — extracted into six pure predicates (`EngineStatus.canInitialize()`, `canStart()`,
-  `canPause()`, `canResume()`, `canStop()`, `canReset()`) shared by both call sites.
-- **Excessive per-tick logging**: `RuntimeControllerImpl` logged an fps line on *every* tick,
-  meaning 120 logcat writes/sec at `TickRate.FPS_120`. Throttled to once per second regardless of
-  configured tick rate — the `EventBus` publish (used by `EngineObserver` and any future
-  subscriber) still carries every tick's full-resolution reading.
-- **An inconsistent log tag**: `EngineLifecycleManagerImpl` used `"EngineLifecycle"` while every
-  other `*Impl` class's tag drops only the `Impl` suffix (`"ModuleRegistry"`,
-  `"RuntimeController"`, `"EngineServiceConnection"`) — renamed to `"EngineLifecycleManager"` for
-  consistency.
-- **Missing KDoc** added to eight public classes that had none (`EngineClockImpl`,
-  `EngineHealthMonitorImpl`, `EngineLoopImpl`, `EngineServiceConnectionImpl`, `EventBusImpl`,
-  `ModuleRegistryImpl`, `PerformanceTimerImpl`, `MainActivity`).
-- **An unused import** in `di/AppModule.kt` (`AppConstants`, referenced only from a KDoc link,
-  which doesn't count as a use to the compiler) — the KDoc link now uses a fully-qualified
-  reference instead, matching the pattern used elsewhere in the codebase.
-
-Explicitly reviewed and left unchanged: `settings/SettingsManager.kt`'s
-`TODO(future phase): persist to and read from dataStore` — this is v0.1.0's deliberate, accurate,
-still-true deferred-persistence marker, not leftover debugging code.
-
-## Thread safety notes
-
-- `ModuleRegistryImpl` synchronizes all reads/writes of its module map on a private lock, since
-  `RuntimeControllerImpl` reads it from the tick loop while a future module could register
-  itself from a different thread.
-- `PerformanceTimerImpl`'s tick counters are plain `var`s, safe only because `measureTick` is
-  exclusively called from the tick loop's single sequential coroutine (never two ticks
-  concurrently) and `measureStartup` can only run once per session, before any tick is reachable.
-  Documented in the class's KDoc as an assumption a future phase must re-check if ticks ever
-  start overlapping.
-- Every other piece of shared engine state is a `StateFlow`/`SharedFlow`, whose updates are
-  inherently atomic; no other manual synchronization is needed or present.
+- `ModuleRegistryImpl` synchronizes all reads/writes of its module map on a private lock.
+- `PerformanceTimerImpl`'s tick counters are safe only because ticks never overlap — documented
+  in its KDoc as an assumption to re-check if that ever changes.
+- Every other piece of shared state (engine or profile) is a `StateFlow`, whose updates are
+  inherently atomic.
 
 ## What's deliberately not here
 
-AI/ML, screen capture, Accessibility Service behavior, OCR, and automation execution are all
-still out of scope. So is a real `EngineModule` implementation, a runtime `POST_NOTIFICATIONS`
-permission request flow, and any UI surface for the new diagnostics layer — all three remain
-future work, unchanged from v0.3.0's scope. **This version is the frozen Core Prototype**; future
-specifications build only on top of it, not by reshaping it.
+Visual recognition, AI, object detection, Accessibility, and MediaProjection are all still out of
+scope — this phase only prepares the product structure they'll eventually plug into. Objects,
+Teaching, Automation, and Settings have no functionality beyond navigation; there is nothing
+behind those cards until `vision`/`recognition`/`behavior`/`automation` are implemented in later
+phases.

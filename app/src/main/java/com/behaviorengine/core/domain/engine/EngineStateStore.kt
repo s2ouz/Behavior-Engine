@@ -3,8 +3,8 @@ package com.behaviorengine.core.domain.engine
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * The single source of truth every UI component observes. Before this phase, `HomeViewModel`
- * read `EngineManager.engineState` directly; now `EngineManager` only exposes actions
+ * The single source of truth every UI component observes. Before this phase, the engine's own
+ * ViewModel read `EngineManager.engineState` directly; now `EngineManager` only exposes actions
  * ([EngineManager.initialize], [EngineManager.start], ...) and every piece of observable state
  * — not just [EngineState] but [EngineSession], [EngineHealthSnapshot], and
  * [PerformanceSnapshot] too — comes from here instead. No UI class should assemble or own any

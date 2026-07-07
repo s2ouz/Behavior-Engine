@@ -2,7 +2,43 @@
 <resources>
     <string name="app_name">Behavior Engine</string>
 
-    <!-- Home screen -->
+    <!-- Welcome screen (onboarding) -->
+    <string name="welcome_subtitle">Visual Automation Engine</string>
+    <string name="welcome_description">Teach visual objects.\nRecognize them.\nAutomate them.</string>
+    <string name="welcome_nickname_placeholder">Choose your nickname</string>
+    <string name="welcome_nickname_helper">%1$d–%2$d characters</string>
+    <string name="welcome_continue_button">Continue</string>
+
+    <!-- Home screen (product hub) -->
+    <string name="home_greeting">Hello, %1$s</string>
+    <string name="home_card_objects_title">Objects</string>
+    <string name="home_card_objects_description">Manage taught visual objects.</string>
+    <string name="home_card_teaching_title">Teaching</string>
+    <string name="home_card_teaching_description">Start teaching new visual objects.</string>
+    <string name="home_card_automation_title">Automation</string>
+    <string name="home_card_automation_description">Run or stop object automation.</string>
+    <string name="home_card_settings_title">Settings</string>
+    <string name="home_card_settings_description">Application preferences.</string>
+
+    <!-- Objects screen (placeholder) -->
+    <string name="objects_title">Objects</string>
+    <string name="objects_placeholder">Object management will be available in a future phase.</string>
+
+    <!-- Teaching screen (placeholder) -->
+    <string name="teaching_title">Teaching</string>
+    <string name="teaching_placeholder">Teaching new visual objects will be available in a future phase.</string>
+
+    <!-- Automation screen (placeholder) -->
+    <string name="automation_title">Automation</string>
+    <string name="automation_placeholder">Automation controls will be available in a future phase.</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_placeholder">Settings will be available in a future phase.</string>
+    <string name="settings_engine_diagnostics_button">Engine Diagnostics</string>
+
+    <!-- Engine diagnostics screen (formerly the v0.1.0-v0.5.0 Home screen) -->
+    <string name="engine_back_button">← Back</string>
     <string name="home_version_label">Version %1$s</string>
     <string name="home_status_label">Engine Status</string>
     <string name="home_runtime_status_label">Runtime Status</string>
@@ -23,10 +59,6 @@
     <string name="home_resume_button">Resume</string>
     <string name="home_stop_button">Stop</string>
     <string name="home_reset_button">Reset</string>
-
-    <!-- Settings screen -->
-    <string name="settings_title">Settings</string>
-    <string name="settings_placeholder">Settings will be available in a future phase.</string>
 
     <!-- EngineService notification -->
     <string name="engine_service_channel_name">Engine Runtime</string>

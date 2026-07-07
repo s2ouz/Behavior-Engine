@@ -2,6 +2,7 @@ package com.behaviorengine.settings
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.behaviorengine.di.SettingsDataStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +17,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class SettingsManager @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    @SettingsDataStore private val dataStore: DataStore<Preferences>
 ) {
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()

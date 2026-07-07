@@ -6,6 +6,13 @@ package com.behaviorengine.navigation
  */
 sealed class Screen(val route: String) {
     data object Splash : Screen("splash")
+    data object Welcome : Screen("welcome")
     data object Home : Screen("home")
+    data object Objects : Screen("objects")
+    data object Teaching : Screen("teaching")
+    data object Automation : Screen("automation")
     data object Settings : Screen("settings")
+
+    /** Not part of the product's main flow — reachable only from [Settings]; see EngineScreen's KDoc. */
+    data object EngineDiagnostics : Screen("engine_diagnostics")
 }

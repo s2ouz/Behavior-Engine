@@ -28,7 +28,7 @@ enum class EngineStatus {
  * Whether tapping "Initialize" is meaningful from this status. Kept as a pure function on
  * [EngineStatus] rather than duplicated as an inline comparison in both
  * [com.behaviorengine.engine.RuntimeControllerImpl] (the enforcement) and
- * `HomeScreen` (the button's `enabled` state) — one definition, two call sites.
+ * `EngineScreen` (the button's `enabled` state) — one definition, two call sites.
  */
 fun EngineStatus.canInitialize(): Boolean = this == EngineStatus.OFFLINE
 
