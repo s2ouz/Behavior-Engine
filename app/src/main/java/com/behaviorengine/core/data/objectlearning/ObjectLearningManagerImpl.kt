@@ -158,7 +158,7 @@ class ObjectLearningManagerImpl @Inject constructor(
         val ocr = runCatching { ocrManager.extractText(cropped) }.getOrNull()
         if (ocr != null) logger.ocrFinished(ocr.text.length)
 
-        val template = objectTemplateManager.createTemplate(features, ocr)
+        val template = objectTemplateManager.createTemplate(features, ocr, bitmap.width, bitmap.height)
         objectRepository.saveTemplate(template)
         logger.templateSaved(template.id)
 

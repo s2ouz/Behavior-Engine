@@ -21,6 +21,9 @@ sealed class Screen(val route: String) {
     /** Not part of the product's main flow — reachable only from [Settings]; see EngineScreen's KDoc. */
     data object EngineDiagnostics : Screen("engine_diagnostics")
 
+    /** SPEC-11's debug/development screen for the Intelligent Visual Matching Engine — reachable only from [Settings], same reasoning as [EngineDiagnostics]. */
+    data object MatchingDebug : Screen("matching_debug")
+
     /** Takes a [VisualObject][com.behaviorengine.core.domain.objects.VisualObject] id argument. */
     data object ObjectDetails : Screen("object_details/{$OBJECT_DETAILS_ARG_OBJECT_ID}") {
         const val ARG_OBJECT_ID = OBJECT_DETAILS_ARG_OBJECT_ID

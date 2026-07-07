@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.behaviorengine.core.presentation.automation.AutomationScreen
 import com.behaviorengine.core.presentation.engine.EngineScreen
+import com.behaviorengine.core.presentation.matching.MatchingDebugScreen
 import com.behaviorengine.core.presentation.objectdetails.ObjectDetailsScreen
 import com.behaviorengine.core.presentation.objects.ObjectsScreen
 import com.behaviorengine.core.presentation.settings.SettingsScreen
@@ -110,11 +111,15 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onEngineDiagnosticsClick = { navController.navigate(Screen.EngineDiagnostics.route) }
+                    onEngineDiagnosticsClick = { navController.navigate(Screen.EngineDiagnostics.route) },
+                    onMatchingDebugClick = { navController.navigate(Screen.MatchingDebug.route) }
                 )
             }
             composable(Screen.EngineDiagnostics.route) {
                 EngineScreen(onBackClick = { navController.popBackStack() })
+            }
+            composable(Screen.MatchingDebug.route) {
+                MatchingDebugScreen(onBackClick = { navController.popBackStack() })
             }
             composable(
                 route = Screen.ObjectDetails.route,

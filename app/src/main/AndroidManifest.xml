@@ -53,6 +53,12 @@
             android:name=".services.TeachingOverlayService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- SPEC-11: Visual Matching's own on-demand screen capture, independent of Teaching Mode. -->
+        <service
+            android:name=".services.VisualMatchingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
     </application>
 
 </manifest>

@@ -1,13 +1,15 @@
-# Behavior Engine — v0.10.0 Smart Object Learning Engine
+# Behavior Engine — v0.11.0 Intelligent Visual Matching Engine
 
 A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine; v0.6.0 built
 onboarding and the navigation shell; v0.7.0 gave the product its taught-object library ("Visual
 Objects"); v0.8.0 built a lifecycle-only teaching session placeholder; v0.9.0 replaced it with real
-`MediaProjection` screen recording. **v0.10.0 turns that raw recording into something reusable**:
-the moment a teaching session finishes, every recorded touch is automatically processed — the
-touched UI element is located, cropped, masked, measured, and (if it has visible text) OCR'd —
-producing a library of `ObjectTemplate`s a future phase can match against live screens. Still no
-automation and no recognition-driven matching — this phase only learns.
+`MediaProjection` screen recording; v0.10.0 turned that raw recording into a library of
+`ObjectTemplate`s (crop, mask, measure, OCR — automatically, the moment a teaching session
+finishes). **v0.11.0 (SPEC-11) closes the loop**: given any `ObjectTemplate`, the new Intelligent
+Visual Matching Engine (IVME) searches a live screen capture and returns its most probable
+location and a 0–100% confidence, without relying on fixed coordinates — tolerant of a different
+resolution, a moved/resized element, or light vs. dark theme. IVME only *locates* objects; it still
+performs no clicks, taps, or automation of any kind.
 
 ## Opening the project
 
@@ -247,6 +249,102 @@ every `ObjectTemplate` as `feature.json` — same content, different folders, ma
 literal storage layout), and `Masks/` (`.png`, lossless, since a binary mask benefits from that
 more than WEBP's lossy compression).
 
+## Intelligent Visual Matching Engine (v0.11.0)
+
+```
+core.domain.matching.MatchResult            // templateId/confidence/boundingBox/center/scale/method/quality — the final output
+core.domain.matching.MatchQuality           // MATCH (≥85%) / POSSIBLE_MATCH (70-84%) — <70% is rejected before a MatchResult exists
+core.domain.matching.CandidateRegion        // one screen region worth full matching — x/y/width/height/priority/score
+core.domain.matching.MatchingStatistics     // one search's performance record, for MatchingRepository
+core.domain.matching.AnalyzedScreen/ScreenAnalyzer   // contrast-normalized grayscale + the raw color bitmap
+core.domain.matching.CandidateSearchEngine  // cache + OCR-region + edge/color grid scan → CandidateRegions
+core.domain.matching.MultiScaleMatcher      // 11 search-window scales per candidate, cheap dHash pass
+core.domain.matching.FeatureMatcher         // reuses FeatureExtractionManager on the winning-scale crop
+core.domain.matching.OCRMatcher             // reuses OCRManager + Levenshtein text similarity
+core.domain.matching.ContextAnalyzer        // positional-consistency check against ObjectTemplate.screenPositionX/Y
+core.domain.matching.ConfidenceEngine       // weighted 0-100 combine (Visual 45 / Shape 20 / OCR 15 / Color 10 / Context 10)
+core.domain.matching.MatchingCache          // in-memory last-known-location cache, TTL-expired
+core.domain.matching.MatchingRepository     // statistics/history read+write, backed by MatchingStorage
+core.domain.matching.MatchingStorage        // JSON file I/O — its own Matching/ root
+core.domain.matching.VisualMatchingManager  // top-level orchestrator — findObject/findAllObjects/cancel/clearCache
+core.domain.matching.DebugOverlayManager    // WindowManager bounding-box+confidence overlay, debug builds only
+core.domain.matching.MatchingServiceConnection // starts/stops VisualMatchingService
+core.data.matching.*Impl                    // real implementations of all of the above
+core.presentation.matching                  // MatchingDebugViewModel/Screen — Settings → "Visual Matching Debug"
+services.VisualMatchingService              // foreground host, type "mediaProjection", mirrors TeachingOverlayService
+core.common.MatchingLogger                  // named log events, funneled through LoggerManager
+```
+
+**Pipeline, exactly as spec'd**: `ScreenAnalyzer → CandidateSearchEngine → MultiScaleMatcher →
+FeatureMatcher/OCRMatcher → ContextAnalyzer → ConfidenceEngine → MatchResult`, orchestrated by
+`VisualMatchingManagerImpl.searchAnalyzed()`, capped at a 300ms budget via `withTimeoutOrNull` — a
+`var best` mutated *outside* that block from inside it survives a mid-loop cancellation, so "return
+the best available result on timeout" (per spec) falls out of normal coroutine semantics rather
+than needing separate timeout-handling code.
+
+**"Multi-scale" means the sampled search window, not the template.** For each candidate region and
+each of the 11 required scale levels (50%–200%), `MultiScaleMatcherImpl` samples a
+`templateWidth*scale x templateHeight*scale` window from the live screen centered on the candidate,
+resizes *that* down/up to the template's exact original size, then compares perceptual hashes — so
+a UI element taught at one size is still found correctly whether the live screen renders it larger,
+smaller, or at a different density/resolution, without ever resizing the template itself.
+
+**Feature matching reuses v0.10.0's `FeatureExtractionManager` rather than re-implementing pixel
+measurement.** The winning-scale crop gets a synthetic fully-opaque mask (a live screen crop has no
+segmentation mask the way a taught object does) and is run through the exact same
+`extractFeatures()` v0.10.0 used to build the template in the first place — guaranteeing the two
+sides of every comparison (`visualHash`, `dominantColors`, `edgeDensity`, `shapeDescriptor`,
+`aspectRatio`) are computed identically. OCR matching similarly reuses `OCRManager`, adding only
+normalized Levenshtein text similarity on top.
+
+**Light/dark theme tolerance comes from relative comparisons, not a separate normalization step.**
+Every signal used (perceptual hash, edge density, dominant-color *distance*, shape) already
+compares pixel *structure*, not absolute brightness — `ScreenAnalyzer` only contrast-stretches the
+grayscale copy used for candidate search, leaving the color bitmap untouched for accurate dominant-
+color comparison. There is no separate "invert for dark mode" step because none of the actual
+scoring needs one.
+
+**Candidate search is a bounded heuristic, not a full-screen scan.** Running 11-scale matching over
+every pixel of a 1080×2400 screen is not feasible in pure Kotlin inside a 300ms budget, so
+`CandidateSearchEngineImpl` first narrows the field: the template's last successful location
+(`MatchingCache`), one OCR pass over the whole screen when the template has text, and a grid scan
+(sized to the template's own dimensions, 50% stride) scored by edge density and dominant-color
+similarity — capped at 20 total candidates, highest-priority first. This is the same
+dependency-free, honest-approximation philosophy v0.10.0 already established for detection
+(no OpenCV, no trained saliency model) — see that section above.
+
+**`ObjectTemplate` gained two optional fields for `ContextAnalyzer`**: `screenPositionX`/
+`screenPositionY`, the object's normalized (0..1) position within the frame it was taught on,
+populated by `ObjectTemplateManagerImpl` at learning time. Templates learned before v0.11.0 default
+to `-1f` (an explicit "unknown" sentinel, not `0`/top-left) and `ContextAnalyzer` returns a neutral
+0.5 score for them rather than falsely penalizing older templates. `ContextAnalyzer` is honestly
+scoped to *positional* consistency only — comparing where a candidate sits on today's screen
+against where the object was originally taught — not the spec's fuller "neighbor objects / layout
+graph" comparison, which would need re-running detection across the whole live screen to find and
+match individual neighboring elements, out of scope for this phase.
+
+**`MatchingCache` is in-memory only, deliberately.** A cache surviving process death would need
+revalidating against a live screen anyway (the UI may have changed since the app last ran), so
+nothing is gained by persisting it; durable match history/statistics already live in
+`MatchingRepository`'s own `Matching/{Statistics,History}` JSON store — a new root folder, sibling
+to `Teaching/`, since matching output isn't teaching-pipeline data.
+
+**Screen capture reuses the same `ScreenCaptureManager` singleton Teaching Mode uses**, rather than
+forking a separate capture path. Starting a `MediaProjection` needs a foreground service and fresh
+user consent — Android's requirement, not this project's choice — so `VisualMatchingService` mirrors
+`TeachingOverlayService` (foreground promotion, then `startProjection`) to let the debug screen
+exercise IVME standalone; if Teaching's own projection happens to already be active, `isCapturing`
+is already `true` and no second consent prompt is shown.
+
+**The debug screen and overlay are the spec's required deliverables, not a bonus feature.**
+Settings → "Visual Matching Debug" starts capture, lists every taught object, runs `findObject()`
+against the live screen on tap, and shows confidence/quality/scale/method/processing time exactly
+as the spec's "debugging screen" section lists. The optional bounding-box overlay
+(`DebugOverlayManagerImpl`, a plain `View`/`Canvas` `WindowManager` window — same reasoning as
+`OverlayManagerImpl`'s KDoc for why not `ComposeView`) is a toggle on that screen; nothing gates it
+to debug builds at the manifest/service level since this whole screen is already unreachable from
+the product's main flow.
+
 ## Engine architecture (unchanged since v0.5.0)
 
 ```mermaid
@@ -291,34 +389,37 @@ com.behaviorengine
 │   │   ├── profile      // UserProfileRepositoryImpl (DataStore)
 │   │   ├── objects      // VisualObjectRepositoryImpl (in-memory)
 │   │   ├── teaching     // Real impls of every core.domain.teaching manager/repository/storage
-│   │   └── objectlearning // Real impls of every core.domain.objectlearning contract (v0.10.0)
+│   │   ├── objectlearning // Real impls of every core.domain.objectlearning contract (v0.10.0)
+│   │   └── matching     // Real impls of every core.domain.matching contract (v0.11.0 / SPEC-11)
 │   ├── domain
 │   │   ├── engine       // Every engine contract (unchanged since v0.5.0)
 │   │   ├── profile      // UserProfile, UserProfileRepository
 │   │   ├── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
 │   │   ├── teaching     // TeachingSession/TouchSample/ScreenFrame + every manager contract
-│   │   └── objectlearning // ObjectTemplate/LearnedObject + every learning-manager contract (v0.10.0)
+│   │   ├── objectlearning // ObjectTemplate/LearnedObject + every learning-manager contract (v0.10.0)
+│   │   └── matching     // MatchResult/CandidateRegion + every IVME pipeline-stage contract (v0.11.0)
 │   └── presentation
 │       ├── splash       // Routing: Welcome vs Objects
 │       ├── welcome      // Onboarding
 │       ├── objects      // The visual memory library (ObjectsViewModel/Screen/Card/EmptyView)
 │       ├── objectdetails// Read-only object details
 │       ├── teaching     // Teaching Mode screen (TeachingViewModel/Screen) — idle/active/learning states
+│       ├── matching     // Visual Matching debug screen (MatchingDebugViewModel/Screen) — v0.11.0
 │       ├── automation   // Placeholder
-│       ├── settings     // Placeholder + Engine Diagnostics link
+│       ├── settings     // Placeholder + Engine Diagnostics / Visual Matching Debug links
 │       ├── engine       // EngineScreen/EngineViewModel (the old engine control screen)
 │       └── common       // PlaceholderScreen, InfoRow, StatusBadge, VisualObjectStatusUi
 ├── engine               // Concrete implementations of every core.domain.engine interface
 ├── vision               // ScreenCaptureManagerImpl — MediaProjection/VirtualDisplay/ImageReader (v0.9.0)
 ├── objectlearning        // ObjectDetectionManagerImpl + OCRManagerImpl — the ML Kit-heavy code (v0.10.0)
-├── recognition          // (future) matching a live screen against learned ObjectTemplates (SPEC-11) — OCR itself now lives in objectlearning, since it's part of learning a template, not matching one
+├── recognition          // (future, still unbuilt) — IVME (v0.11.0) landed under core.domain/data.matching instead, mirroring objectlearning's own Clean Architecture package pair rather than this reserved-but-empty slot
 ├── world                // (future) structured "what's on screen" model
 ├── behavior             // (future) rules / actions / feedback
 ├── memory               // (future) persisted history for learning to train on
 ├── learning             // (future) adapts rules/decisions over time
-├── automation           // (future) executes actions against the device
+├── automation           // (future) executes actions against the device — IVME (v0.11.0) only *locates*, this still performs no clicks
 ├── accessibility        // (future) AccessibilityService integration
-├── services             // EngineService + TeachingOverlayService (foreground hosts)
+├── services             // EngineService + TeachingOverlayService + VisualMatchingService (foreground hosts)
 ├── settings             // AppSettings model + DataStore prep (distinct from profile)
 ├── utils                // Time/number/date formatting helpers
 ├── di                   // Hilt modules + qualifiers
@@ -328,14 +429,22 @@ com.behaviorengine
 
 ## What's deliberately not here
 
-**v0.10.0**: template *matching* is explicitly out of scope — "this module does NOT execute
-automation, it only learns." The spec's own `objectlearning/matcher/` folder is intentionally
-unbuilt this phase, exactly like `com.behaviorengine.recognition` and `com.behaviorengine.automation`
-stay empty/reserved — SPEC-11 is what reads `ObjectTemplate`s back and compares them against a live
-screen. There's no session-history/picker UI either (see above for why that doesn't block this
-phase); learned objects aren't yet linked to a specific `VisualObject` — `LearnedObject` only
-references the session/touch/frame it came from, since there's no UI yet for the user to say
-"these objects are the same thing I taught earlier."
+**v0.11.0**: IVME only *locates* — "this module does NOT perform clicks or automation," per spec;
+`com.behaviorengine.automation` stays empty/reserved for whatever future phase actually acts on a
+`MatchResult`. Candidate search is a bounded heuristic (cache + one OCR pass + an edge/color-scored
+grid, capped at 20 regions), not a literal implementation of the spec's "visual saliency" — there's
+no trained saliency model in this dependency-free project, matching v0.10.0's same stance on ORB/
+OpenCV. `ContextAnalyzer` only checks positional consistency, not a full neighbor-object/layout
+graph (that needs re-running detection across the whole live screen, out of scope this phase).
+`MatchingCache` is process-lifetime only, never persisted (see above for why). There's no debug-UI
+history browser for `MatchingRepository`'s saved statistics/match history yet — the data is written
+correctly, just not surfaced beyond the current search's live result.
+
+**v0.10.0**: template *matching* was out of scope then — closed by v0.11.0/SPEC-11 above. There's
+still no session-history/picker UI (see above for why that doesn't block learning); learned objects
+still aren't linked to a specific `VisualObject` — `LearnedObject` only references the
+session/touch/frame it came from, since there's no UI yet for the user to say "these objects are
+the same thing I taught earlier."
 
 **v0.7.0/v0.8.0, unchanged**: image recognition, AI analysis, automation, auto-click, and
 Accessibility actions are all still out of scope app-wide. There's still no editing UI for a

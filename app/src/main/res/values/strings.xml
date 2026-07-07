@@ -96,6 +96,30 @@
     <string name="settings_title">Settings</string>
     <string name="settings_placeholder">Settings will be available in a future phase.</string>
     <string name="settings_engine_diagnostics_button">Engine Diagnostics</string>
+    <string name="settings_matching_debug_button">Visual Matching Debug</string>
+
+    <!-- Visual Matching debug screen (SPEC-11) -->
+    <string name="matching_debug_back_button">← Back</string>
+    <string name="matching_debug_title">Visual Matching Debug</string>
+    <string name="matching_debug_subtitle">Search live screen for taught objects</string>
+    <string name="matching_debug_capture_inactive">Screen capture is not active. Start it to search for objects on the live screen.</string>
+    <string name="matching_debug_start_capture_button">Start Capture</string>
+    <string name="matching_debug_stop_capture_button">Stop Capture</string>
+    <string name="matching_debug_permission_projection_denied">Screen recording permission was not granted.</string>
+    <string name="matching_debug_no_templates">No taught objects yet — teach one first.</string>
+    <string name="matching_debug_find_button">Find on Screen</string>
+    <string name="matching_debug_searching">Searching…</string>
+    <string name="matching_debug_no_match">No match found (confidence below 70%).</string>
+    <string name="matching_debug_result_confidence">Confidence</string>
+    <string name="matching_debug_result_quality">Quality</string>
+    <string name="matching_debug_result_scale">Scale Used</string>
+    <string name="matching_debug_result_method">Matching Method</string>
+    <string name="matching_debug_result_processing_time">Processing Time</string>
+    <string name="matching_debug_overlay_toggle">Show Debug Overlay</string>
+
+    <!-- VisualMatchingService notification -->
+    <string name="matching_service_channel_name">Visual Matching</string>
+    <string name="matching_service_notification_text">Visual matching capture is active</string>
 
     <!-- Engine diagnostics screen (formerly the v0.1.0-v0.5.0 Home screen) -->
     <string name="engine_back_button">← Back</string>

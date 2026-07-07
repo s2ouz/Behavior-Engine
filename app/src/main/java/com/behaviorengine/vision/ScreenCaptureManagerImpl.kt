@@ -121,9 +121,14 @@ class ScreenCaptureManagerImpl @Inject constructor(
         return withContext(Dispatchers.IO) {
             val image = runCatching { reader.acquireLatestImage() }.getOrNull() ?: return@withContext null
             try {
-                encodeImage(image)
+                // stopProjection() closes imageReader from the calling coroutine without waiting
+                // for an in-flight captureFrame() to finish, so this Image can be invalidated
+                // mid-encode (IllegalStateException: "Image is already closed") — a real race
+                // hit live during SPEC-11 testing, not hypothetical. Degrade to "no frame this
+                // tick" rather than crashing the whole process.
+                runCatching { encodeImage(image) }.getOrNull()
             } finally {
-                image.close()
+                runCatching { image.close() }
             }
         }
     }
