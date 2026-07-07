@@ -1,8 +1,10 @@
-# Behavior Engine — v0.2.0 Core Infrastructure
+# Behavior Engine — v0.3.0 Runtime Foundation
 
-A Visual Behavior Engine for Android. v0.1.0 built the architecture shell; this phase builds a
-real engine skeleton behind it — lifecycle, tick loop, module system, events, clock, config —
-still with no AI, no screen capture, no Accessibility Service, no OCR, and no automation.
+A Visual Behavior Engine for Android. v0.1.0 built the architecture shell, v0.2.0 built the
+engine's internal machinery (lifecycle, tick loop, modules, events). This phase makes the engine
+a real Android *background* engine — a foreground Service, a session concept, performance
+timing, and health reporting — still with no AI, no screen capture, no Accessibility Service,
+no OCR, and no automation.
 
 ## Opening the project
 
@@ -19,7 +21,8 @@ Requires JDK 17 and Android SDK Platform 35 (installed via Android Studio's SDK 
 
 ## Package structure
 
-Unchanged from v0.1.0 — this phase adds files, not new packages:
+Unchanged from v0.1.0/v0.2.0 — this phase adds files, not new packages, with one exception:
+`services/` now holds a real `EngineService` instead of only a `package-info.kt` placeholder.
 
 ```
 com.behaviorengine
@@ -40,7 +43,7 @@ com.behaviorengine
 ├── learning           // (future) adapts rules/decisions over time
 ├── automation         // (future) executes actions against the device
 ├── accessibility      // (future) AccessibilityService integration
-├── services           // (future) Android Service hosts (foreground service, etc.)
+├── services           // EngineService (foreground host); future AccessibilityService lives here too
 ├── settings           // User preference model + DataStore prep (no persistence yet)
 ├── utils              // Small pure-function helpers (e.g. time formatting)
 ├── di                 // Hilt modules
@@ -48,99 +51,100 @@ com.behaviorengine
 └── ui/theme           // Compose dark theme, typography, color tokens
 ```
 
-`vision → recognition → world → behavior → memory → learning → automation → accessibility`
-are still empty (each holds a `package-info.kt` explaining its future role) — this phase is
-entirely about the engine's *own* machinery in `core.domain.engine` / `engine`, not those
-subsystems. A future Vision/Rule/Learning/etc. module will be an `EngineModule` implementation
-registered with `ModuleRegistry`, but none is implemented yet.
+## Why EngineManager split into three collaborators
 
-## The engine skeleton
+v0.2.0's `EngineManagerImpl` did everything itself: validated transitions, drove the tick loop,
+fanned out to modules. That was fine when "control the engine" meant one thing. This phase adds
+a second, orthogonal responsibility — owning a real Android Service — and rather than bolt it
+onto an already-busy class, the tick-loop mechanics moved out into their own component:
 
-Every piece below lives as a framework-free interface in `core.domain.engine` with its real
-implementation in `engine`, bound together in `di/EngineDiModule.kt` — the same
-interface-in-domain, implementation-in-engine split v0.1.0 established for `EngineManager`,
-just applied consistently to every new subsystem instead of bolting them onto one class.
+- **`RuntimeController`** — everything v0.2.0's `EngineManagerImpl` used to do: fan out
+  `EngineModule` lifecycle calls via `ModuleRegistry`, drive `EngineLoop`/`EngineClock` in
+  lockstep, validate every transition through `EngineLifecycleManager`, and now also wrap
+  startup/tick timing through `PerformanceTimer`. Its behavior is unchanged from v0.2.0 — it was
+  moved, not rewritten.
+- **`EngineServiceConnection`** — a framework-free handle (`isConnected: StateFlow<Boolean>`,
+  `connect()`, `disconnect()`) onto the real `EngineService`. No Android types appear in the
+  interface; only its `engine`-package implementation knows it's actually starting/stopping an
+  Android Service.
+- **`EngineManager` / `EngineManagerImpl`** — now a thin facade (~35 lines) coupling the two:
+  `initialize()` delegates to `RuntimeController.initialize()` and, only if that succeeds,
+  calls `EngineServiceConnection.connect()`; `reset()` mirrors that in reverse. `start/pause/
+  resume/stop` are pure one-line delegations to `RuntimeController` — the Service's lifetime is
+  tied to the *session* (Initialize → Reset), not to whether the tick loop is currently running.
 
-- **`EngineLifecycleManager`** — owns the state machine. `EngineStatus` now has eleven states
-  (`OFFLINE, INITIALIZING, READY, STARTING, RUNNING, PAUSING, PAUSED, RESUMING, STOPPING,
-  STOPPED, ERROR`) instead of v0.1.0's six, modeling transitions as a validated table rather
-  than trusting callers: `transitionTo()` returns `false` and leaves state untouched for any
-  move not in the table (e.g. `RUNNING -> INITIALIZING` is always rejected). `forceError()` is
-  the one deliberate bypass, for when a module has already thrown and validation is moot.
+`EngineManager` is still the *only* class allowed to call `EngineServiceConnection.connect()` /
+`disconnect()` — not a ViewModel, not `EngineService` itself — matching this phase's spec.
 
-- **`EngineClock`** — tick count, instantaneous FPS (measured from real wall-clock gaps between
-  ticks, not just an echo of the configured rate), elapsed-since-last-tick, running time (zeroed
-  on stop), and uptime (persists across stop/restart, cleared only on full reset). Kept separate
-  from `EngineLoop` deliberately: the loop is just "fires periodically, cancellable," the clock
-  is the stateful record of what happened.
+## EngineService
 
-- **`EngineLoop`** — the "permanent" tick engine, without a literal `while(true)`: it loops on
-  `while (isActive)` inside a cancellable coroutine, so stopping it is just cancelling that
-  coroutine. Configurable via `TickRate` (`FPS_10` default, `FPS_30/60/120` prepared for when
-  module work per tick actually costs something).
+A real Android foreground Service (`services/EngineService.kt`) with **no business logic**: it
+holds no reference to `RuntimeController` or `ModuleRegistry`. The tick loop already runs on its
+own coroutine scope regardless of any Android component's lifecycle (true since v0.2.0); what it
+doesn't survive on its own is the *process* being killed once there's no visible Activity. This
+Service exists purely to promote that process to the foreground with a persistent, honest
+notification, so the engine keeps ticking while the app is backgrounded. `onStartCommand`
+promotes to foreground immediately and returns `START_NOT_STICKY` — restarting after a process
+kill is a decision only `EngineManager.initialize()` should make, not something the platform
+should do unprompted while the lifecycle state machine doesn't know it happened. Uses the
+`specialUse` foreground service type (API 34+) since none of the platform's predefined
+categories (`dataSync`, `mediaPlayback`, etc.) honestly describe "run an app's own background
+computation loop."
 
-- **`EngineModule` / `ModulePriority` / `ModuleRegistry`** — the plugin contract every future
-  subsystem (Vision, Rules, Learning, Memory, Actions, Feedback) will implement
-  (`initialize/start/update/pause/resume/stop/release`), a five-tier priority
-  (`CRITICAL > HIGH > NORMAL > LOW > BACKGROUND`) controlling init/start order, and the registry
-  that holds them. No module exists yet — `EngineManagerImpl` fans lifecycle calls out to
-  whatever's registered, which today is nothing.
+## EngineSession
 
-- **`EventBus` / `EngineEvent`** — Flow-based pub/sub (`SharedFlow`, not a hand-rolled listener
-  list — "subscribe" is `events.collect{}`, "unsubscribe" is cancelling that collector's job).
-  `EngineEvent` covers lifecycle changes, module events, warnings, errors, and per-tick
-  performance readings.
+`core.domain.engine.EngineSession` (sessionId, start time, elapsed time, status, tick, fps,
+reserved stats) identifies *which run this is*, as opposed to `EngineState`'s "what is the
+engine doing." `EngineStateStoreImpl` mints a new UUID the moment the engine leaves OFFLINE for
+INITIALIZING and clears it the moment it returns to OFFLINE — never on a mere `stop()` — by
+reacting to `EngineEvent.LifecycleChanged` off the `EventBus`, the same event-driven pattern
+`EngineObserver` already used in v0.2.0.
 
-- **`EngineObserver`** — a standing `EventBus` subscriber that folds the raw event stream into
-  a running `EngineObserverSnapshot` (last lifecycle change, error/warning counts, last error,
-  last performance reading). Distinct from `EngineState`: that's "what's happening right now"
-  for the Home screen; this is "what has happened so far," for a future diagnostics screen or
-  a crash reporter.
+## EngineStateStore
 
-- **`EngineError`** — sealed hierarchy (`InitializationError`, `ModuleError`,
-  `ConfigurationError`, `RuntimeError`, `UnknownError`). Every exception a module throws during
-  a lifecycle call is caught by `EngineManagerImpl`, wrapped into a `ModuleError` naming which
-  module failed, and forces `ERROR` via `EngineLifecycleManager.forceError` — a broken future
-  module can't crash the app or leave the engine stuck mid-transition.
+The single source of truth every UI component observes (`engineState`, `session`, `health`,
+`performance`). `HomeViewModel` previously read `EngineManager.engineState` directly; now
+`EngineManager` only exposes actions, and every observable flow comes from here instead — "no UI
+class should own engine state" per this phase's spec.
 
-- **`EngineConfig`** — `targetTickRate`, `debugEnabled`, `loggingEnabled`,
-  `performanceMonitorEnabled`, `autoStart`, and reserved `aiEnabled`/`accessibilityEnabled`/
-  `visionEnabled` flags, held by `ConfigManager`. Only `targetTickRate` is actually consulted
-  this phase (by `EngineManagerImpl.start()`); the rest are declared so later phases don't
-  reshape this data class, the same pattern `settings.AppSettings` used for AI/accessibility.
+## PerformanceTimer
 
-- **`EngineManager` / `EngineManagerImpl`** — the orchestrator gluing all of the above together
-  behind the same simple contract the ViewModel already depended on
-  (`initialize/start/pause/resume/stop/reset` + `StateFlow<EngineState>`), so growing the engine
-  internally never required touching `HomeViewModel`'s dependency. `EngineState` now also
-  carries `currentTick`, `currentFps`, `uptimeMillis`, and `loadedModules` alongside v0.1.0's
-  `status`/`currentPhase`/`runningTimeMillis`/`version`.
+Measures three things `EngineClock` doesn't: startup duration (one call, `initialize()`), and
+last/average tick duration (how long a tick's own CPU work takes, as opposed to `EngineClock`'s
+FPS, which measures wall-clock time *between* ticks). Runtime duration is deliberately *not*
+independently re-measured — `RuntimeControllerImpl` feeds it `EngineClock`'s own uptime each
+tick via `recordRuntimeDuration()`, so the two numbers can never disagree. "No optimization
+required yet" per spec: this only collects metrics, nothing reacts to a slow tick.
 
-- **`LoggerManager`** gained a `performance()` level (tagged `.../Perf`, used once per tick).
-  File logging is still deferred — every log call already funnels through this one class, so
-  that's a single new tree planted in `init()` whenever a future phase needs it.
+## EngineHealthMonitor
+
+Combines `EngineLifecycleManager`, `EngineServiceConnection`, `EngineObserver`, and
+`ModuleRegistry` into one `EngineHealthSnapshot` (engine alive, runtime active, service
+connected, lifecycle valid, module count, error/warning counts). Purely reporting — no automatic
+recovery, per spec; a future phase deciding whether to back off automation after repeated errors
+would read from here rather than re-deriving these checks itself.
 
 ## UI
 
-Home screen now shows status, current tick, current FPS, running time, and loaded modules
-(empty today — "None" — since no module is registered), with six buttons mapped one-to-one onto
-legal transitions: **Initialize** (enabled only OFFLINE), **Start** (READY), **Pause**
-(RUNNING), **Resume** (PAUSED), **Stop** (RUNNING or PAUSED), **Reset** (STOPPED or ERROR).
-Buttons that don't correspond to a legal transition from the current state are simply disabled,
-rather than relying on `EngineLifecycleManager` to reject a tap the UI should never have
-allowed in the first place.
+Home screen shows Engine Status (the raw `EngineStatus` name), Runtime Status (a friendlier
+Active/Paused/Idle derived from it), Service Status (Connected/Disconnected from
+`EngineHealthSnapshot`), Session ID (first 8 characters, or "—"), Running Time, Tick Count, and
+Average Tick Time — the same six buttons as v0.2.0 (Initialize/Start/Pause/Resume/Stop/Reset),
+each still enabled only for its legal transition.
 
 ## Dependency injection
 
-`di/EngineDiModule.kt` binds all seven new interfaces to their `engine` package
-implementations. It's deliberately *not* named `EngineModule.kt` — that name now belongs to
-`core.domain.engine.EngineModule`, the plugin contract, and reusing it for the Hilt module would
-make every import ambiguous to a reader even though the compiler can tell them apart by package.
+`di/EngineDiModule.kt` now binds twelve interfaces total (five new this phase:
+`RuntimeController`, `EngineServiceConnection`, `PerformanceTimer`, `EngineHealthMonitor`,
+`EngineStateStore`). The dependency graph is a strict DAG — `EngineManager` depends on
+`RuntimeController`/`EngineServiceConnection`/`EngineStateStore`; `EngineStateStore` depends on
+`EngineHealthMonitor`/`PerformanceTimer`; nothing depends back up — so Hilt resolves it without
+needing `@Provides` methods beyond the `@Binds` declarations already established in v0.2.0.
 
 ## What's deliberately not here
 
 AI/ML, screen capture, Accessibility Service behavior, OCR, and automation execution are all
-still out of scope. So is a real `EngineModule` implementation — Vision, Rules, Learning, Memory,
-Actions, and Feedback modules will register with `ModuleRegistry` in later phases; this phase
-only guarantees the registry, the priority system, and the lifecycle fan-out are already correct
-and tested against *some* module before the first real one shows up.
+still out of scope. So is a real `EngineModule` implementation, and so is a runtime
+`POST_NOTIFICATIONS` permission request flow — the permission is declared in the manifest (so
+the foreground notification *can* display), but requesting it from the user is a future
+Settings/permissions phase's concern, not a runtime-foundation one.

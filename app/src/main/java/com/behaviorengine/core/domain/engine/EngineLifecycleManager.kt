@@ -4,9 +4,9 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Owns the engine's state machine: the single place that decides whether a transition between
- * [EngineStatus] values is legal, so [com.behaviorengine.engine.EngineManagerImpl] never has to
- * re-derive the rules itself. For example RUNNING can move to PAUSING or STOPPING, but never
- * directly back to INITIALIZING — attempting that must be rejected, not silently coerced.
+ * [EngineStatus] values is legal, so [RuntimeController] never has to re-derive the rules
+ * itself. For example RUNNING can move to PAUSING or STOPPING, but never directly back to
+ * INITIALIZING — attempting that must be rejected, not silently coerced.
  */
 interface EngineLifecycleManager {
 

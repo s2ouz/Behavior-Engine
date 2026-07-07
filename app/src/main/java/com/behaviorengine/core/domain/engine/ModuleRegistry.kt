@@ -3,9 +3,9 @@ package com.behaviorengine.core.domain.engine
 /**
  * Owns every registered [EngineModule] and the order the engine deals with them in. Registering
  * a module doesn't start it — that only happens when [EngineLifecycleManager] moves through
- * INITIALIZING/STARTING and [com.behaviorengine.engine.EngineManagerImpl] fans out to
- * [getAllModules] / [getActiveModules] — so a module can be registered ahead of time and later
- * enabled/disabled without re-registering it.
+ * INITIALIZING/STARTING and [RuntimeController] fans out to [getAllModules] / [getActiveModules]
+ * — so a module can be registered ahead of time and later enabled/disabled without
+ * re-registering it.
  */
 interface ModuleRegistry {
 

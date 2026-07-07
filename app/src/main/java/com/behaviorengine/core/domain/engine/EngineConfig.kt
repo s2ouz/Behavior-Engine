@@ -5,8 +5,8 @@ import com.behaviorengine.core.common.AppConstants
 /**
  * Engine-internal runtime configuration, held by [com.behaviorengine.core.common.ConfigManager].
  * Only [targetTickRate] actually drives behavior this phase (read by
- * [com.behaviorengine.engine.EngineManagerImpl.start] to size the tick interval); the rest are
- * declared now so later phases don't have to reshape this data class, matching how
+ * [com.behaviorengine.engine.RuntimeControllerImpl.start] to size the tick interval); the rest
+ * are declared now so later phases don't have to reshape this data class, matching how
  * [com.behaviorengine.settings.AppSettings] reserved fields for AI/accessibility ahead of time.
  */
 data class EngineConfig(

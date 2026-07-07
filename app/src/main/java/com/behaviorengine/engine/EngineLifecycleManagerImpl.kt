@@ -14,8 +14,9 @@ import javax.inject.Singleton
 
 /**
  * Real implementation of [EngineLifecycleManager]. The transition table below is the single
- * source of truth for what's legal; [com.behaviorengine.engine.EngineManagerImpl] never checks
- * [EngineStatus] values itself, it just calls [transitionTo] and reacts to the boolean result.
+ * source of truth for what's legal; [com.behaviorengine.engine.RuntimeControllerImpl] never
+ * checks [EngineStatus] values itself, it just calls [transitionTo] and reacts to the boolean
+ * result.
  */
 @Singleton
 class EngineLifecycleManagerImpl @Inject constructor(

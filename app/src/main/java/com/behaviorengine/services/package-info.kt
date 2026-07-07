@@ -1,6 +1,5 @@
 /**
- * Android Service components (foreground service hosting the engine, future
- * [com.behaviorengine.accessibility] service declaration). Not implemented in the Foundation
- * phase — the engine currently only runs in-process while the app is foregrounded.
+ * Android Service components. [EngineService] (added in v0.3.0) hosts the engine's background
+ * execution; a future [com.behaviorengine.accessibility] service declaration will live here too.
  */
 package com.behaviorengine.services

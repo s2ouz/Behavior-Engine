@@ -5,12 +5,18 @@
     <!-- Home screen -->
     <string name="home_version_label">Version %1$s</string>
     <string name="home_status_label">Engine Status</string>
-    <string name="home_phase_label">Current Phase</string>
-    <string name="home_tick_label">Current Tick</string>
-    <string name="home_fps_label">Current FPS</string>
+    <string name="home_runtime_status_label">Runtime Status</string>
+    <string name="home_service_status_label">Service Status</string>
+    <string name="home_session_id_label">Session ID</string>
     <string name="home_running_time_label">Running Time</string>
-    <string name="home_modules_label">Loaded Modules</string>
-    <string name="home_modules_empty">None</string>
+    <string name="home_tick_count_label">Tick Count</string>
+    <string name="home_avg_tick_time_label">Average Tick Time</string>
+    <string name="home_runtime_active">Active</string>
+    <string name="home_runtime_paused">Paused</string>
+    <string name="home_runtime_idle">Idle</string>
+    <string name="home_service_connected">Connected</string>
+    <string name="home_service_disconnected">Disconnected</string>
+    <string name="home_session_id_none">—</string>
     <string name="home_initialize_button">Initialize</string>
     <string name="home_start_button">Start</string>
     <string name="home_pause_button">Pause</string>
@@ -21,4 +27,8 @@
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_placeholder">Settings will be available in a future phase.</string>
+
+    <!-- EngineService notification -->
+    <string name="engine_service_channel_name">Engine Runtime</string>
+    <string name="engine_service_notification_text">Engine session is active</string>
 </resources>

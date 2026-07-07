@@ -3,13 +3,13 @@ package com.behaviorengine.core.domain.engine
 import com.behaviorengine.core.common.AppConstants
 
 /**
- * Immutable snapshot of the engine at a single point in time — the one object the presentation
- * layer observes. Combines [EngineLifecycleManager.status] with [EngineClockSnapshot] and the
- * currently registered module ids so the Home screen has everything it needs from a single
- * [EngineManager.engineState] subscription instead of juggling several sources.
+ * Immutable snapshot of the engine at a single point in time — combines
+ * [EngineLifecycleManager.status] with [EngineClockSnapshot] and the currently registered module
+ * ids. Exposed to the presentation layer via [EngineStateStore.engineState] rather than directly,
+ * so the Home screen has one subscription instead of juggling several sources.
  *
  * @param status Current lifecycle state, see [EngineStatus].
- * @param currentPhase Human-readable development phase (e.g. "Core Infrastructure"), shown in the UI.
+ * @param currentPhase Human-readable development phase (e.g. "Runtime Foundation"), shown in the UI.
  * @param version Engine core version, independent of the app's own version.
  * @param currentTick See [EngineClockSnapshot.currentTick].
  * @param currentFps See [EngineClockSnapshot.currentFps].

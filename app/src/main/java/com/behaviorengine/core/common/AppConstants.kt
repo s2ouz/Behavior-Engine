@@ -19,10 +19,10 @@ object AppConstants {
      * engine (vision/behavior/automation) is expected to version independently of the
      * surrounding app shell as it matures.
      */
-    const val ENGINE_VERSION: String = "0.2.0"
+    const val ENGINE_VERSION: String = "0.3.0"
 
     /** Human-readable label for the development phase currently being built, shown in the UI. */
-    const val CURRENT_PHASE: String = "Core Infrastructure"
+    const val CURRENT_PHASE: String = "Runtime Foundation"
 
     /** True only in debug builds; gates verbose logging and future debug-only UI affordances. */
     val DEBUG_MODE: Boolean = BuildConfig.DEBUG

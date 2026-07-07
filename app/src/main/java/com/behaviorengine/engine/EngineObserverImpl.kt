@@ -18,8 +18,9 @@ import javax.inject.Singleton
 /**
  * The reference [EventBus] subscriber: collects every [EngineEvent] for the lifetime of the
  * process and folds it into a running [EngineObserverSnapshot]. Runs on its own scope rather
- * than piggybacking on [EngineManagerImpl] because observation should keep working even if the
- * engine itself is OFFLINE or has hit ERROR — it's watching the engine, not part of it.
+ * than piggybacking on [com.behaviorengine.engine.RuntimeControllerImpl] because observation
+ * should keep working even if the engine itself is OFFLINE or has hit ERROR — it's watching the
+ * engine, not part of it.
  */
 @Singleton
 class EngineObserverImpl @Inject constructor(

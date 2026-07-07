@@ -28,8 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.behaviorengine.R
 import com.behaviorengine.core.common.AppConstants
+import com.behaviorengine.core.domain.engine.EngineHealthSnapshot
+import com.behaviorengine.core.domain.engine.EngineSession
 import com.behaviorengine.core.domain.engine.EngineState
 import com.behaviorengine.core.domain.engine.EngineStatus
+import com.behaviorengine.core.domain.engine.PerformanceSnapshot
 import com.behaviorengine.ui.theme.StatusError
 import com.behaviorengine.ui.theme.StatusIdle
 import com.behaviorengine.ui.theme.StatusRunning
@@ -40,9 +43,15 @@ import java.util.Locale
 @Composable
 fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
     val engineState by viewModel.engineState.collectAsState()
+    val session by viewModel.session.collectAsState()
+    val health by viewModel.health.collectAsState()
+    val performance by viewModel.performance.collectAsState()
 
     HomeContent(
         engineState = engineState,
+        session = session,
+        health = health,
+        performance = performance,
         onInitializeClicked = viewModel::onInitializeClicked,
         onStartClicked = viewModel::onStartClicked,
         onPauseClicked = viewModel::onPauseClicked,
@@ -55,6 +64,9 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
 @Composable
 private fun HomeContent(
     engineState: EngineState,
+    session: EngineSession,
+    health: EngineHealthSnapshot,
+    performance: PerformanceSnapshot,
     onInitializeClicked: () -> Unit,
     onStartClicked: () -> Unit,
     onPauseClicked: () -> Unit,
@@ -94,18 +106,18 @@ private fun HomeContent(
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
-                label = stringResource(R.string.home_phase_label),
-                value = engineState.currentPhase
+                label = stringResource(R.string.home_runtime_status_label),
+                value = runtimeStatusLabel(engineState.status)
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
-                label = stringResource(R.string.home_tick_label),
-                value = engineState.currentTick.toString()
+                label = stringResource(R.string.home_service_status_label),
+                value = serviceStatusLabel(health.serviceConnected)
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
-                label = stringResource(R.string.home_fps_label),
-                value = String.format(Locale.US, "%.1f", engineState.currentFps)
+                label = stringResource(R.string.home_session_id_label),
+                value = sessionIdLabel(session.sessionId)
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
@@ -114,10 +126,13 @@ private fun HomeContent(
             )
             Spacer(modifier = Modifier.height(12.dp))
             InfoRow(
-                label = stringResource(R.string.home_modules_label),
-                value = engineState.loadedModules.takeIf { it.isNotEmpty() }
-                    ?.joinToString(", ")
-                    ?: stringResource(R.string.home_modules_empty)
+                label = stringResource(R.string.home_tick_count_label),
+                value = engineState.currentTick.toString()
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            InfoRow(
+                label = stringResource(R.string.home_avg_tick_time_label),
+                value = String.format(Locale.US, "%.2f ms", performance.averageTickDurationMillis)
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -227,6 +242,23 @@ private fun InfoRow(
         )
     }
 }
+
+@Composable
+private fun runtimeStatusLabel(status: EngineStatus): String = when (status) {
+    EngineStatus.RUNNING -> stringResource(R.string.home_runtime_active)
+    EngineStatus.PAUSED -> stringResource(R.string.home_runtime_paused)
+    else -> stringResource(R.string.home_runtime_idle)
+}
+
+@Composable
+private fun serviceStatusLabel(connected: Boolean): String =
+    stringResource(if (connected) R.string.home_service_connected else R.string.home_service_disconnected)
+
+@Composable
+private fun sessionIdLabel(sessionId: String): String =
+    sessionId.takeIf { it.isNotEmpty() }?.take(SESSION_ID_DISPLAY_LENGTH) ?: stringResource(R.string.home_session_id_none)
+
+private const val SESSION_ID_DISPLAY_LENGTH = 8
 
 private fun EngineStatus.toDisplayColor(): Color = when (this) {
     EngineStatus.RUNNING -> StatusRunning

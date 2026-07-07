@@ -2,10 +2,9 @@ package com.behaviorengine.core.domain.engine
 
 /**
  * Everything that can go wrong inside the engine, typed instead of thrown-and-caught-generically.
- * [com.behaviorengine.engine.EngineManagerImpl] catches exceptions from module lifecycle calls
- * and wraps them into one of these before forcing [EngineStatus.ERROR] via
- * [EngineLifecycleManager.forceError], so every failure the UI or logs ever see has a known
- * shape instead of an arbitrary [Throwable].
+ * [RuntimeController] catches exceptions from module lifecycle calls and wraps them into one of
+ * these before forcing [EngineStatus.ERROR] via [EngineLifecycleManager.forceError], so every
+ * failure the UI or logs ever see has a known shape instead of an arbitrary [Throwable].
  */
 sealed class EngineError(open val message: String) {
 

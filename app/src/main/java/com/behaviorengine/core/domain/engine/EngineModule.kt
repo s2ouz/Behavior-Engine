@@ -3,9 +3,9 @@ package com.behaviorengine.core.domain.engine
 /**
  * The contract every engine subsystem will implement: a future Vision module, Rule module,
  * Learning module, Memory module, Action module, and Feedback module all plug into
- * [com.behaviorengine.engine.EngineManagerImpl] through this single shape, registered with a
- * [ModuleRegistry]. None of those modules exist yet — this phase only establishes the interface
- * they'll implement and the registry that will hold them.
+ * [RuntimeController] through this single shape, registered with a [ModuleRegistry]. None of
+ * those modules exist yet — this phase only establishes the interface they'll implement and the
+ * registry that will hold them.
  *
  * Lifecycle calls mirror [EngineLifecycleManager]'s states one-for-one: [initialize] runs during
  * ENGINE INITIALIZING, [start]/[stop] during STARTING/STOPPING, [update] once per engine tick

@@ -5,9 +5,9 @@ package com.behaviorengine.core.domain.engine
  * without ever writing a literal `while (true)`: the implementation loops on `while (isActive)`
  * so cancelling the underlying coroutine is enough to stop it, no extra flag plumbing needed.
  * Deliberately generic (it doesn't know about [EngineClock] or [ModuleRegistry]) so
- * [com.behaviorengine.engine.EngineManagerImpl] can supply whatever tick behavior the engine
- * currently needs, and so other future subsystems needing their own independent tick rate
- * (e.g. a vision capture loop) can reuse it.
+ * [RuntimeController] can supply whatever tick behavior the engine currently needs, and so other
+ * future subsystems needing their own independent tick rate (e.g. a vision capture loop) can
+ * reuse it.
  */
 interface EngineLoop {
 

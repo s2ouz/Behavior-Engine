@@ -16,8 +16,7 @@ import javax.inject.Singleton
  *
  * [engineConfig] is in-memory only for now, same as [com.behaviorengine.settings.SettingsManager]
  * — there's no UI yet to edit it, so persistence would have nothing to round-trip against.
- * [com.behaviorengine.engine.EngineManagerImpl] reads it once per [start][EngineManagerImpl.start]
- * to pick the tick rate.
+ * `RuntimeControllerImpl` reads it once per `start()`/`resume()` to pick the tick rate.
  */
 @Singleton
 class ConfigManager @Inject constructor() {
