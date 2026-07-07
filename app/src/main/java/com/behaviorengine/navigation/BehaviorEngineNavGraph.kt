@@ -25,30 +25,21 @@ import com.behaviorengine.core.presentation.objects.ObjectsScreen
 import com.behaviorengine.core.presentation.settings.SettingsScreen
 import com.behaviorengine.core.presentation.splash.SplashScreen
 import com.behaviorengine.core.presentation.teaching.TeachingScreen
-import com.behaviorengine.core.presentation.teachingpreparation.TeachingPreparationScreen
 import com.behaviorengine.core.presentation.welcome.WelcomeScreen
 
 private const val TRANSITION_MILLIS = 300
 private const val SLIDE_DIVISOR = 5
 
-/** Returns to the Objects tab exactly as tapping its bottom nav item would — same save/restore semantics. */
-private fun navigateToObjectsTab(navController: NavHostController) {
-    navController.navigate(Screen.Objects.route) {
-        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-        launchSingleTop = true
-        restoreState = true
-    }
-}
-
 /**
  * Top-level navigation graph. A [Scaffold] with a bottom bar wraps the whole [NavHost]; the bar
- * itself only renders for [Screen.BOTTOM_NAV_ROUTES] — Splash, Welcome, [Screen.ObjectDetails],
- * [Screen.EngineDiagnostics], and [Screen.TeachingPreparation] are all full-screen with no bottom
- * bar, since they're either pre-onboarding or "detail"/"in-flow" screens one level below the four
- * main tabs.
+ * itself only renders for [Screen.BOTTOM_NAV_ROUTES] — Splash, Welcome, [Screen.ObjectDetails], and
+ * [Screen.EngineDiagnostics] are all full-screen with no bottom bar, since they're either
+ * pre-onboarding or "detail" screens one level below the four main tabs. [Screen.Teaching] itself
+ * stays on the bottom bar even while a session is recording — starting/stopping Teaching Mode
+ * never navigates away, it just changes what that same screen shows (see `TeachingScreen`).
  *
- * Only [Screen.Objects] and [Screen.Welcome] are fully designed this phase;
- * [Screen.Teaching]/[Screen.Automation]/[Screen.Settings] remain simple placeholders.
+ * Only [Screen.Objects] and [Screen.Teaching] are fully designed this phase;
+ * [Screen.Automation]/[Screen.Settings] remain simple placeholders.
  */
 @Composable
 fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavController()) {
@@ -112,12 +103,7 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
                 )
             }
             composable(Screen.Teaching.route) {
-                TeachingScreen(
-                    onStartTeaching = { sessionId ->
-                        navController.navigate(Screen.TeachingPreparation.createRoute(sessionId))
-                    },
-                    onCancelClick = { navigateToObjectsTab(navController) }
-                )
+                TeachingScreen()
             }
             composable(Screen.Automation.route) {
                 AutomationScreen()
@@ -135,12 +121,6 @@ fun BehaviorEngineNavGraph(navController: NavHostController = rememberNavControl
                 arguments = listOf(navArgument(Screen.ObjectDetails.ARG_OBJECT_ID) { type = NavType.StringType })
             ) {
                 ObjectDetailsScreen(onBackClick = { navController.popBackStack() })
-            }
-            composable(
-                route = Screen.TeachingPreparation.route,
-                arguments = listOf(navArgument(Screen.TeachingPreparation.ARG_SESSION_ID) { type = NavType.StringType })
-            ) {
-                TeachingPreparationScreen(onFinishClick = { navigateToObjectsTab(navController) })
             }
         }
     }

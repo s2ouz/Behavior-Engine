@@ -1,14 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Required to run EngineService as a foreground service (API 28+) and to declare its
          special-use category (API 34+); see services/EngineService.kt for why "specialUse"
          is the right foreground service type when no other category fits. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <!-- Required on API 33+ for the foreground service notification to actually be visible;
-         requesting this at runtime is deferred to a future phase (Settings/permissions UI). -->
+    <!-- Required on API 33+ to post the foreground service notification; requested at runtime
+         from TeachingScreen before starting Teaching Mode (see TeachingScreen.kt). EngineService
+         still defers this, unchanged since v0.5.0. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Teaching Mode (v0.9.0): screen capture + the floating overlay. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Optional: only used, if the user separately grants it in system Settings, for a
+         best-effort guess at which app is being taught on. See SessionManagerImpl for the
+         graceful fallback when it isn't granted. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:name=".BehaviorEngineApp"
@@ -37,6 +48,11 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="behavior_engine_runtime" />
         </service>
+
+        <service
+            android:name=".services.TeachingOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
     </application>
 
 </manifest>

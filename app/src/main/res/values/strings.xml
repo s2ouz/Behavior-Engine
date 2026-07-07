@@ -54,24 +54,32 @@
     <string name="object_details_future_ai_title">Future AI Information</string>
     <string name="object_details_future_ai_description">AI-powered recognition insights will appear here in a future phase.</string>
 
-    <!-- Teaching screen -->
-    <string name="teaching_screen_title">Visual Teaching</string>
-    <string name="teaching_screen_subtitle">Teach a new visual object</string>
-    <string name="teaching_selected_object_label">Selected Object</string>
-    <string name="teaching_no_object_title">No visual object yet</string>
-    <string name="teaching_no_object_description">Create a visual object first, then come back here to teach it.</string>
-    <string name="teaching_info_title">How teaching works</string>
-    <string name="teaching_info_description">After pressing Start, the application will prepare for visual teaching. The actual capture process will be introduced in the next step.</string>
+    <!-- Teaching screen: idle state -->
+    <string name="teaching_screen_title">Teaching Mode</string>
+    <string name="teaching_screen_subtitle">Record how you use any app</string>
+    <string name="teaching_info_description">Start Teaching Mode, then switch to any app as usual. A small floating control stays on screen the whole time. Nothing leaves your device.</string>
+    <string name="teaching_permission_overlay_explanation">Behavior Engine needs permission to draw over other apps, so the floating control can stay visible while you use them.</string>
+    <string name="teaching_permission_notification_explanation">Behavior Engine needs permission to show a notification while Teaching Mode is running, so you always know it\'s active.</string>
+    <string name="teaching_permission_projection_denied">Screen recording permission was not granted, so Teaching Mode could not start.</string>
     <string name="teaching_start_button">Start Teaching</string>
+
+    <!-- Teaching screen: active recording state -->
+    <string name="teaching_active_title">Teaching Mode Active</string>
+    <string name="teaching_stat_current_app">Current App</string>
+    <string name="teaching_stat_recording_time">Recording Time</string>
+    <string name="teaching_stat_touch_count">Touch Count</string>
+    <string name="teaching_stat_frame_count">Frame Count</string>
+    <string name="teaching_stat_resolution">Resolution</string>
+    <string name="teaching_stat_orientation">Orientation</string>
+    <string name="teaching_stat_storage_used">Storage Used</string>
+    <string name="teaching_pause_button">Pause</string>
+    <string name="teaching_resume_button">Resume</string>
+    <string name="teaching_finish_button">Finish</string>
     <string name="teaching_cancel_button">Cancel</string>
 
-    <!-- Teaching preparation screen -->
-    <string name="teaching_preparation_title">Preparing…</string>
-    <string name="teaching_preparation_checklist_object_selected">Object Selected</string>
-    <string name="teaching_preparation_checklist_session_created">Session Created</string>
-    <string name="teaching_preparation_checklist_capture_permission">Waiting for Screen Capture Permission</string>
-    <string name="teaching_preparation_checklist_capture_engine">Waiting for Capture Engine</string>
-    <string name="teaching_preparation_finish_button">Finish</string>
+    <!-- TeachingOverlayService notification -->
+    <string name="teaching_overlay_channel_name">Teaching Mode</string>
+    <string name="teaching_overlay_notification_text">Teaching session is recording</string>
 
     <!-- Automation screen (placeholder) -->
     <string name="automation_title">Automation</string>

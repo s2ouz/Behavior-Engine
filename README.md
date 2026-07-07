@@ -1,11 +1,13 @@
-# Behavior Engine — v0.8.0 Teaching Workflow
+# Behavior Engine — v0.9.0 Visual Teaching Mode Foundation
 
 A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine; v0.6.0 built
 onboarding and the navigation shell; v0.7.0 gave the product its taught-object library ("Visual
-Objects"). **v0.8.0 prepares the complete teaching workflow**: a user can now start a teaching
-session for an object and watch it move through preparation — still no image capture, no
-recognition, no screen recording permission request, no AI. Only the lifecycle those features
-will eventually plug into.
+Objects"); v0.8.0 built a lifecycle-only teaching session placeholder. **v0.9.0 replaces that
+placeholder with the real thing**: `MediaProjection` screen capture at 2 FPS, a floating overlay
+service, and local JSON+WEBP session storage — a user can record how they use *any* app on the
+device, pause/resume/finish/cancel that recording, and inspect exactly what got saved. Still no
+OCR, object detection, recognition, automation, or AI — this phase only collects clean data for
+those to consume later.
 
 ## Opening the project
 
@@ -20,22 +22,23 @@ version (Gradle 8.9). Regenerate the launcher one of two ways:
 
 Requires JDK 17 and Android SDK Platform 35 (installed via Android Studio's SDK Manager).
 
-## Product navigation flow (changed in v0.8.0)
+## Product navigation flow (changed in v0.9.0)
 
 ```mermaid
 graph TD
     Splash["Splash — decides Welcome vs Objects"] -->|first launch| Welcome["Welcome — nickname onboarding"]
     Splash -->|returning user| Objects
     Welcome -->|saveNickname + completeFirstLaunch| Objects["Objects — visual memory library"]
-    Objects <-->|bottom nav| Teaching["Teaching — start a session"]
+    Objects <-->|bottom nav| Teaching["Teaching — start/stop a recording"]
     Objects <-->|bottom nav| Automation["Automation (placeholder)"]
     Objects <-->|bottom nav| Settings["Settings (placeholder)"]
     Objects -->|tap card / + New| ObjectDetails["Object Details (read-only)"]
-    Teaching -->|Start Teaching| TeachingPreparation["Teaching Preparation — checklist"]
-    TeachingPreparation -->|Finish| Objects
-    Teaching -->|Cancel| Objects
     Settings -.Engine Diagnostics link.-> EngineScreen["EngineScreen — the v0.1.0-v0.5.0 engine control screen"]
 ```
+
+Unlike v0.8.0, Teaching no longer navigates to a separate screen when a recording starts — the
+same `TeachingScreen` just changes what it shows (idle explanation vs. live stats), since starting
+a screen recording is not itself a "detail" destination to drill into.
 
 **The v0.6.0 "Home" hub is gone.** Its only job was navigation, and a persistent bottom bar
 (Objects/Teaching/Automation/Settings) is a strictly better fit for "the user should land in the
@@ -97,38 +100,79 @@ this can ever be defined, shared by `ObjectCard` and `ObjectDetailsScreen`:
 `READY`→green, `TRAINING`→yellow, `DISABLED`→gray, `ARCHIVED`→red — exactly the four colors this
 phase's spec allows.
 
-## The teaching workflow (v0.8.0)
+## Teaching Mode architecture (v0.9.0)
 
 ```
-core.domain.teaching.TeachingSession     // sessionId, objectId, created, status, capturedSamples, reserved
-core.domain.teaching.TeachingStatus      // CREATED/PREPARING/READY/RUNNING/PAUSED/STOPPED/FINISHED/CANCELLED
-core.domain.teaching.TeachingManager     // create/start/pause/resume/finish/cancel/destroy — lifecycle only
-core.domain.teaching.TeachingRepository  // save/load/delete — sessions IS the session history
-core.data.teaching.TeachingManagerImpl   // writes through to the repository on every transition
-core.data.teaching.TeachingRepositoryImpl // in-memory only, same reasoning as VisualObjectRepositoryImpl
+core.domain.teaching.TeachingState            // Idle/Preparing/Recording/Paused/Stopping/Completed/Cancelled
+core.domain.teaching.TeachingSession          // device/screen metadata, timing, running frame/touch counts
+core.domain.teaching.TouchSample              // one collected touch — real MotionEvent fields
+core.domain.teaching.ScreenFrame               // one captured frame's metadata (imagePath, never pixels)
+core.domain.teaching.TeachingModeManager      // start/pause/resume/stop/cancel — top-level orchestrator
+core.domain.teaching.SessionManager           // session lifecycle + device metadata, wraps TeachingRepository
+core.domain.teaching.ScreenCaptureManager     // MediaProjection lifecycle + the 2 FPS capture loop
+core.domain.teaching.TouchCollectorManager    // builds TouchSamples from MotionEvents
+core.domain.teaching.OverlayManager           // the floating WindowManager overlay
+core.domain.teaching.TeachingRecorder         // wires capture/touch streams into TeachingRepository
+core.domain.teaching.TeachingRepository       // sessions/touches/frames read+write, backed by TeachingStorage
+core.domain.teaching.TeachingStorage          // JSON+WEBP file I/O — the bottom layer
+core.domain.teaching.TeachingServiceConnection // starts/stops TeachingOverlayService
+core.data.teaching.*Impl                      // real implementations of all of the above
+vision.ScreenCaptureManagerImpl               // the actual MediaProjection/VirtualDisplay/ImageReader code
+services.TeachingOverlayService               // foreground host, type "mediaProjection"
+core.common.TeachingLogger                    // named teaching log events, funneled through LoggerManager
 ```
 
-**Lifecycle only, on purpose.** This phase explicitly forbids capture, recognition, and screen
-recording — `TeachingManager` only ever moves `TeachingSession.status` forward
-(`CREATED → PREPARING → FINISHED`, or `→ CANCELLED`), it never touches pixels. A future phase
-wiring in the real capture engine only has to teach `startSession` to do more than flip a status.
+**"UI → Manager → Repository → Storage → JSON Database," exactly as spec'd.**
+`TeachingViewModel` only ever calls `TeachingModeManager`; that manager coordinates
+`SessionManager`, `ScreenCaptureManager`, `TouchCollectorManager`, `OverlayManager`, and
+`TeachingRecorder` — mirroring how `EngineManager` coordinates the engine's own subsystems without
+any of them needing to know about each other.
 
-**No object picker.** The spec's flow is "Choose Object → Start Teaching," but this phase's file
-list doesn't include a picker UI — `TeachingViewModel.selectedObject` is simply the first object in
-`VisualObjectRepository.objects`, since that library (built in v0.7.0) is the only source of
-objects to teach. If none exist yet, the Teaching screen says so and disables "Start Teaching"
-rather than crashing on a null object.
+**Only starting a recording needs the foreground service.** Android 14+ requires
+`MediaProjectionManager.getMediaProjection()` to be called only while a `mediaProjection`-typed
+foreground service is already promoted, so `TeachingOverlayService.onStartCommand` does exactly
+that one thing (`startForeground` then `startProjection`) before handing off to the same
+singleton managers `TeachingModeManagerImpl` uses everywhere else. Pause/resume/stop/cancel call
+straight into those managers with no Service involved at all — there's no Android constraint on
+those calls, so routing them through the Service would just be indirection for its own sake.
 
-**Teaching Preparation's checklist is static.** "Object Selected" and "Session Created" are always
-checked by the time that screen can show; "Waiting for Screen Capture Permission" and "Waiting for
-Capture Engine" are permanently unchecked placeholders for the phases that build those systems. The
-large `CircularProgressIndicator` doubles as the spec's "Large Icon" and "Loading animation" —
-one Material3 primitive satisfies both requirements without inventing a custom asset.
+**`currentSession`/`currentState` are derived, never separately mutated.** `TeachingModeManagerImpl`
+tracks only "which session id is current"; both StateFlows are `combine()`d from
+`TeachingRepository.sessions` (which every real mutation writes through). Whichever component
+actually changes something — the Service starting capture, or the manager pausing it — the UI and
+the overlay can never observe a stale state, because there's only one source of truth to read from.
 
-**"Finish" and "Cancel" both return to the Objects tab** using the exact same
-`popUpTo(startDestination) { saveState = true } / launchSingleTop / restoreState` navigation used
-by the bottom bar itself (factored into `navigateToObjectsTab` in `BehaviorEngineNavGraph`) — "the
-user is always in control" applies as much to backing out mid-flow as it does to finishing it.
+**Touch collection is honestly scoped to the overlay's own controls.** Capturing raw touch
+coordinates system-wide, on whatever app the user is teaching on, needs either root, a
+system-signature permission, or (Android 14+) an `AccessibilityService` declaring
+`FLAG_REQUEST_MOTION_EVENTS` — none of which are in this phase's permission list, and the last one
+needs a manual user opt-in in system Accessibility settings this spec never mentions. Every touch
+this phase *does* collect (dragging the overlay bubble, tapping its Pause/Stop/Cancel buttons) is
+a completely real `MotionEvent` — genuine pressure, size, pointer count, action — written straight
+to `session.json`. A future phase adding system-wide capture only has to feed more samples through
+the same `TouchCollectorManager.recordTouch`, per the "modular... without refactoring" requirement.
+
+**Frames are written to disk immediately, never buffered in memory.** `ScreenCaptureManagerImpl`
+captures a `VirtualDisplay`/`ImageReader` frame every 500ms, converts it to WEBP
+(`Bitmap.CompressFormat.WEBP_LOSSY` on API 30+, legacy `WEBP` below that), and every `Bitmap`
+created along the way is `recycle()`d before the function returns — nothing here accumulates.
+`TeachingRepository` only ever keeps *metadata* (`ScreenFrame`, no pixels) in memory per session.
+
+**Storage lives at `getExternalFilesDir(null)/Teaching/`** — scoped-storage compliant, no
+`MANAGE_EXTERNAL_STORAGE` needed, mirroring the spec's requested `Android/data/<package>/Teaching/`
+layout as closely as a modern non-rooted app is allowed to: `Sessions/<id>/session.json`,
+`Frames/<id>/frame_00001.webp` etc., `Json/` reserved for a future cross-session index, `Temp/`
+used for an atomic write-then-rename so a process death mid-write can never corrupt `session.json`.
+
+**Three permission gates, each requested only when needed.** `TeachingScreen` checks
+`Settings.canDrawOverlays()` (re-checked on `ON_RESUME`, since granting it happens in a separate
+Settings screen), then `POST_NOTIFICATIONS` on API 33+, then finally launches the system
+`MediaProjection` consent dialog — denying any of them shows an explanation instead of crashing.
+
+**`packageName`/`applicationName` are a best-effort guess.** Reliably knowing which app is in the
+foreground system-wide needs `PACKAGE_USAGE_STATS`, a separate special permission this phase
+doesn't require; `SessionManagerImpl` checks whether the user has separately granted Usage Access
+and falls back to this app's own package/label when they haven't, rather than guessing wrong.
 
 ## Engine architecture (unchanged since v0.5.0)
 
@@ -173,25 +217,24 @@ com.behaviorengine
 │   ├── data
 │   │   ├── profile      // UserProfileRepositoryImpl (DataStore)
 │   │   ├── objects      // VisualObjectRepositoryImpl (in-memory)
-│   │   └── teaching     // TeachingManagerImpl, TeachingRepositoryImpl (in-memory)
+│   │   └── teaching     // Real impls of every core.domain.teaching manager/repository/storage
 │   ├── domain
 │   │   ├── engine       // Every engine contract (unchanged since v0.5.0)
 │   │   ├── profile      // UserProfile, UserProfileRepository
 │   │   ├── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
-│   │   └── teaching     // TeachingSession, TeachingStatus, TeachingManager, TeachingRepository
+│   │   └── teaching     // TeachingSession/TouchSample/ScreenFrame + every manager contract
 │   └── presentation
 │       ├── splash       // Routing: Welcome vs Objects
 │       ├── welcome      // Onboarding
 │       ├── objects      // The visual memory library (ObjectsViewModel/Screen/Card/EmptyView)
 │       ├── objectdetails// Read-only object details
-│       ├── teaching     // Start-a-session screen (TeachingViewModel/Screen)
-│       ├── teachingpreparation // Checklist screen (TeachingPreparationViewModel/Screen)
+│       ├── teaching     // Teaching Mode screen (TeachingViewModel/Screen) — idle + active states
 │       ├── automation   // Placeholder
 │       ├── settings     // Placeholder + Engine Diagnostics link
 │       ├── engine       // EngineScreen/EngineViewModel (the old engine control screen)
 │       └── common       // PlaceholderScreen, InfoRow, StatusBadge, VisualObjectStatusUi
 ├── engine               // Concrete implementations of every core.domain.engine interface
-├── vision               // (future) screen capture / frame acquisition
+├── vision               // ScreenCaptureManagerImpl — MediaProjection/VirtualDisplay/ImageReader (v0.9.0)
 ├── recognition          // (future) OCR + visual element recognition
 ├── world                // (future) structured "what's on screen" model
 ├── behavior             // (future) rules / actions / feedback
@@ -199,7 +242,7 @@ com.behaviorengine
 ├── learning             // (future) adapts rules/decisions over time
 ├── automation           // (future) executes actions against the device
 ├── accessibility        // (future) AccessibilityService integration
-├── services             // EngineService (foreground host)
+├── services             // EngineService + TeachingOverlayService (foreground hosts)
 ├── settings             // AppSettings model + DataStore prep (distinct from profile)
 ├── utils                // Time/number/date formatting helpers
 ├── di                   // Hilt modules + qualifiers
@@ -209,9 +252,11 @@ com.behaviorengine
 
 ## What's deliberately not here
 
-Image processing, recognition, AI, object detection, Accessibility, screen capture, and
-MediaProjection are all still out of scope. So is any editing UI for a `VisualObject` (rename,
-notes, image management) — Object Details is read-only per this phase's spec; so is real
-persistence for the object library, per the reasoning above. v0.8.0 adds the teaching *lifecycle*
-only — no image capture, no screen recording permission request, no object picker UI, and no
-persistence for `TeachingSession` either, matching `VisualObjectRepositoryImpl`'s reasoning.
+Image recognition, object detection, OCR, AI analysis, automation, auto-click, Accessibility
+actions, and template matching are all still out of scope — this module only *collects* data,
+per its spec. Touch collection is scoped to the overlay's own controls rather than system-wide
+(see above). There's still no editing UI for a `VisualObject` (rename, notes, image management) —
+Object Details is read-only; there's still no real persistence for the object library either —
+both unchanged since v0.7.0/v0.8.0. Nothing collected by Teaching Mode is yet associated with a
+specific `VisualObject` — this phase records raw sessions only; linking a session's frames/touches
+to a taught object is future work once recognition exists to make that link meaningful.
