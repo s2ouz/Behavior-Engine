@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -44,6 +45,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.behaviorengine.R
+import com.behaviorengine.core.domain.objectlearning.LearningProgress
 import com.behaviorengine.core.domain.teaching.TeachingSession
 import com.behaviorengine.core.domain.teaching.TeachingState
 import com.behaviorengine.core.presentation.common.InfoRow
@@ -63,6 +65,8 @@ fun TeachingScreen(viewModel: TeachingViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val session by viewModel.currentSession.collectAsState()
     val state by viewModel.currentState.collectAsState()
+    val isLearning by viewModel.isLearning.collectAsState()
+    val learningProgress by viewModel.learningProgress.collectAsState()
 
     var hasOverlayPermission by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var hasNotificationPermission by remember { mutableStateOf(hasNotificationPermission(context)) }
@@ -111,8 +115,12 @@ fun TeachingScreen(viewModel: TeachingViewModel = hiltViewModel()) {
 
     val isActive = state == TeachingState.PREPARING || state == TeachingState.RECORDING || state == TeachingState.PAUSED
 
-    if (isActive && session != null) {
-        ActiveTeachingContent(
+    when {
+        isLearning -> LearningProgressContent(
+            progress = learningProgress,
+            onCancelClick = viewModel::onCancelLearningClicked
+        )
+        isActive && session != null -> ActiveTeachingContent(
             session = requireNotNull(session),
             state = state,
             storageUsedBytes = viewModel::storageUsedBytes,
@@ -121,8 +129,7 @@ fun TeachingScreen(viewModel: TeachingViewModel = hiltViewModel()) {
             onFinishClick = viewModel::onFinishClicked,
             onCancelClick = viewModel::onCancelClicked
         )
-    } else {
-        IdleTeachingContent(
+        else -> IdleTeachingContent(
             hasOverlayPermission = hasOverlayPermission,
             hasNotificationPermission = hasNotificationPermission,
             permissionDeniedMessage = permissionDeniedMessage,
@@ -251,6 +258,67 @@ private fun ActiveTeachingContent(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(onClick = onCancelClick, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.teaching_cancel_button))
+        }
+    }
+}
+
+/**
+ * "Processing Session..." per spec — shown the moment [TeachingViewModel.onFinishClicked] hands
+ * the just-finished session off to [com.behaviorengine.core.domain.objectlearning.ObjectLearningManager].
+ * [progress] is briefly `null` right as learning starts/ends; the indicator stays indeterminate then.
+ */
+@Composable
+private fun LearningProgressContent(progress: LearningProgress?, onCancelClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.teaching_learning_title),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        if (progress != null && progress.totalTouches > 0) {
+            LinearProgressIndicator(
+                progress = { progress.currentTouchIndex.toFloat() / progress.totalTouches.toFloat() },
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Card(
+            shape = RoundedCornerShape(SECTION_CARD_CORNER_RADIUS_DP.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                InfoRow(
+                    stringResource(R.string.teaching_learning_touch_progress),
+                    "${progress?.currentTouchIndex ?: 0} / ${progress?.totalTouches ?: 0}"
+                )
+                InfoRow(stringResource(R.string.teaching_learning_objects_learned), (progress?.objectsLearned ?: 0).toString())
+                InfoRow(
+                    stringResource(R.string.teaching_learning_current_confidence),
+                    "${((progress?.currentConfidence ?: 0f) * 100).toInt()}%"
+                )
+                InfoRow(
+                    stringResource(R.string.teaching_learning_remaining_time),
+                    TimeFormatter.formatElapsed(progress?.estimatedRemainingMillis ?: 0L)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
 
         OutlinedButton(onClick = onCancelClick, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.teaching_cancel_button))

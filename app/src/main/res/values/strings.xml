@@ -81,6 +81,13 @@
     <string name="teaching_overlay_channel_name">Teaching Mode</string>
     <string name="teaching_overlay_notification_text">Teaching session is recording</string>
 
+    <!-- Teaching screen: object-learning processing state -->
+    <string name="teaching_learning_title">Processing Session…</string>
+    <string name="teaching_learning_touch_progress">Touch</string>
+    <string name="teaching_learning_objects_learned">Objects Learned</string>
+    <string name="teaching_learning_current_confidence">Current Confidence</string>
+    <string name="teaching_learning_remaining_time">Estimated Remaining Time</string>
+
     <!-- Automation screen (placeholder) -->
     <string name="automation_title">Automation</string>
     <string name="automation_placeholder">Automation controls will be available in a future phase.</string>

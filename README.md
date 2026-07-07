@@ -1,13 +1,13 @@
-# Behavior Engine — v0.9.0 Visual Teaching Mode Foundation
+# Behavior Engine — v0.10.0 Smart Object Learning Engine
 
 A Visual Behavior Engine for Android. v0.1.0–v0.5.0 built and froze the engine; v0.6.0 built
 onboarding and the navigation shell; v0.7.0 gave the product its taught-object library ("Visual
-Objects"); v0.8.0 built a lifecycle-only teaching session placeholder. **v0.9.0 replaces that
-placeholder with the real thing**: `MediaProjection` screen capture at 2 FPS, a floating overlay
-service, and local JSON+WEBP session storage — a user can record how they use *any* app on the
-device, pause/resume/finish/cancel that recording, and inspect exactly what got saved. Still no
-OCR, object detection, recognition, automation, or AI — this phase only collects clean data for
-those to consume later.
+Objects"); v0.8.0 built a lifecycle-only teaching session placeholder; v0.9.0 replaced it with real
+`MediaProjection` screen recording. **v0.10.0 turns that raw recording into something reusable**:
+the moment a teaching session finishes, every recorded touch is automatically processed — the
+touched UI element is located, cropped, masked, measured, and (if it has visible text) OCR'd —
+producing a library of `ObjectTemplate`s a future phase can match against live screens. Still no
+automation and no recognition-driven matching — this phase only learns.
 
 ## Opening the project
 
@@ -174,6 +174,79 @@ foreground system-wide needs `PACKAGE_USAGE_STATS`, a separate special permissio
 doesn't require; `SessionManagerImpl` checks whether the user has separately granted Usage Access
 and falls back to this app's own package/label when they haven't, rather than guessing wrong.
 
+## Smart Object Learning Engine (v0.10.0)
+
+```
+core.domain.objectlearning.BoundingBox           // left/top/right/bottom pixel rect, padding/distance helpers
+core.domain.objectlearning.DetectionMethod       // the 5-tier priority order, tried in this order
+core.domain.objectlearning.DetectionCandidate    // one tier's proposed bounding box + confidence
+core.domain.objectlearning.VisualFeatures        // everything measured from one cropped object
+core.domain.objectlearning.OcrResult             // recognized text + language + bounding box
+core.domain.objectlearning.ObjectTemplate        // the persisted, reusable template (feature.json)
+core.domain.objectlearning.LearnedObject         // links one touch to the template learned from it
+core.domain.objectlearning.LearningProgress      // "Processing Session..." UI state
+core.domain.objectlearning.FrameSelectionManager // closest-frame-to-touch lookup, ≤100ms tolerance
+core.domain.objectlearning.ObjectDetectionManager// the 5-tier detector chain
+core.domain.objectlearning.CropManager           // crop + background-subtraction mask
+core.domain.objectlearning.FeatureExtractionManager // pixel measurements — see below
+core.domain.objectlearning.OCRManager            // ML Kit text recognition + language ID
+core.domain.objectlearning.ObjectTemplateManager // merges features + OCR into one ObjectTemplate
+core.domain.objectlearning.ObjectRepository      // sessions/templates/objects read+write
+core.domain.objectlearning.ObjectLearningStorage // JSON+WEBP+PNG file I/O — the bottom layer
+core.domain.objectlearning.ObjectLearningManager // top-level orchestrator
+core.data.objectlearning.*Impl                   // real implementations of all of the above
+objectlearning.ObjectDetectionManagerImpl        // ML Kit + hand-rolled contour/edge/fallback tiers
+objectlearning.OCRManagerImpl                    // ML Kit Text Recognition + Language ID
+core.common.ObjectLearningLogger                 // named log events, funneled through LoggerManager
+```
+
+**Triggered automatically, not manually.** There's no session-history/picker UI yet, so
+`TeachingViewModel.onFinishClicked` hands the just-finished session straight to
+`ObjectLearningManager.startLearning` — the natural, lowest-friction reading of "at the end of
+teaching, learn objects from it." Only Finish does this, not Cancel: a cancelled recording is
+data the user explicitly chose to discard, matching v0.9.0's "keep the files, don't force an
+opinion on them" stance for Cancel while not forcing a processing pass on data the user didn't
+want. `TeachingScreen` gains a third state (`isLearning`) alongside idle/active, showing the
+spec's "Processing Session... Touch X/Y, Objects Learned, Current Confidence, Estimated Remaining
+Time" — no new nav route needed, exactly how idle/active already share one screen.
+
+**Real ML Kit for detection and OCR; hand-rolled pixel algorithms for the rest.** Tier 2
+(`ML_KIT_OBJECT_DETECTION`) and OCR both use bundled on-device ML Kit models — genuine, no
+placeholders. Tiers 3/4 ("Contour Detection"/"Edge Detection" in the spec) are real, distinct pixel
+algorithms — a local-window flood-fill segmentation and a four-direction Sobel edge-boundary
+trace — deliberately *not* OpenCV, whose Android artifact bundles native `.so` libraries this
+project has no way to verify across ABIs without significant added risk for a pure-Kotlin
+alternative that solves the same "find a bounding box around the touch point" problem. Tier 1
+(`ACCESSIBILITY_NODE`) never actually produces a candidate: object learning processes *completed*
+sessions after the fact, from a saved screenshot — there is no live `AccessibilityNodeInfo` tree to
+query for a touch that already happened, regardless of whether an `AccessibilityService` exists.
+Tier 5 (a fixed box around the touch point) always succeeds with a confidence deliberately below
+the 70% quality gate, so a blind guess can never look as trustworthy as a real detection.
+
+**`VisualFeatures.cornerFeatureCount` and `.shapeDescriptor` are honest simplifications**, not
+placeholders: real ORB descriptor extraction and true shape descriptors (Hu moments, Fourier
+descriptors) need OpenCV too. `cornerFeatureCount` is a genuine FAST-style corner-response count
+(pixels where both Sobel gradients are individually strong); `shapeDescriptor` is the mask's real
+fill ratio. `visualHash` (a genuine 64-bit difference-hash), `dominantColors`, `averageBrightness`,
+and `edgeDensity` are all fully real, unsimplified measurements — useful today for a future
+duplicate-detection pass, not waiting on a library this project doesn't have.
+
+**Quality rules reject one touch, never the whole session** — confidence below 70%, a crop under
+24px, a corrupted image, or no frame within 100ms all just skip that touch and move on, logged as
+a warning; `processSession` still reports `Learning completed` at the end either way, per "never
+block UI."
+
+**Resuming needs no separate progress file.** `processSession` fetches
+`ObjectRepository.getObjectsForSession` up front and skips any touch that already produced a
+`LearnedObject` — calling `startLearning` again for a session that was stopped or killed mid-run
+naturally continues from where it left off.
+
+**Storage extends the same `Teaching/` root** v0.9.0 already owns, adding `Objects/` (one
+`.webp` + one `.json` per learned object), `Templates/` and `Features/` (each holding a copy of
+every `ObjectTemplate` as `feature.json` — same content, different folders, matching the spec's
+literal storage layout), and `Masks/` (`.png`, lossless, since a binary mask benefits from that
+more than WEBP's lossy compression).
+
 ## Engine architecture (unchanged since v0.5.0)
 
 ```mermaid
@@ -217,25 +290,28 @@ com.behaviorengine
 │   ├── data
 │   │   ├── profile      // UserProfileRepositoryImpl (DataStore)
 │   │   ├── objects      // VisualObjectRepositoryImpl (in-memory)
-│   │   └── teaching     // Real impls of every core.domain.teaching manager/repository/storage
+│   │   ├── teaching     // Real impls of every core.domain.teaching manager/repository/storage
+│   │   └── objectlearning // Real impls of every core.domain.objectlearning contract (v0.10.0)
 │   ├── domain
 │   │   ├── engine       // Every engine contract (unchanged since v0.5.0)
 │   │   ├── profile      // UserProfile, UserProfileRepository
 │   │   ├── objects      // VisualObject, VisualObjectStatus, VisualObjectRepository
-│   │   └── teaching     // TeachingSession/TouchSample/ScreenFrame + every manager contract
+│   │   ├── teaching     // TeachingSession/TouchSample/ScreenFrame + every manager contract
+│   │   └── objectlearning // ObjectTemplate/LearnedObject + every learning-manager contract (v0.10.0)
 │   └── presentation
 │       ├── splash       // Routing: Welcome vs Objects
 │       ├── welcome      // Onboarding
 │       ├── objects      // The visual memory library (ObjectsViewModel/Screen/Card/EmptyView)
 │       ├── objectdetails// Read-only object details
-│       ├── teaching     // Teaching Mode screen (TeachingViewModel/Screen) — idle + active states
+│       ├── teaching     // Teaching Mode screen (TeachingViewModel/Screen) — idle/active/learning states
 │       ├── automation   // Placeholder
 │       ├── settings     // Placeholder + Engine Diagnostics link
 │       ├── engine       // EngineScreen/EngineViewModel (the old engine control screen)
 │       └── common       // PlaceholderScreen, InfoRow, StatusBadge, VisualObjectStatusUi
 ├── engine               // Concrete implementations of every core.domain.engine interface
 ├── vision               // ScreenCaptureManagerImpl — MediaProjection/VirtualDisplay/ImageReader (v0.9.0)
-├── recognition          // (future) OCR + visual element recognition
+├── objectlearning        // ObjectDetectionManagerImpl + OCRManagerImpl — the ML Kit-heavy code (v0.10.0)
+├── recognition          // (future) matching a live screen against learned ObjectTemplates (SPEC-11) — OCR itself now lives in objectlearning, since it's part of learning a template, not matching one
 ├── world                // (future) structured "what's on screen" model
 ├── behavior             // (future) rules / actions / feedback
 ├── memory               // (future) persisted history for learning to train on
@@ -252,11 +328,17 @@ com.behaviorengine
 
 ## What's deliberately not here
 
-Image recognition, object detection, OCR, AI analysis, automation, auto-click, Accessibility
-actions, and template matching are all still out of scope — this module only *collects* data,
-per its spec. Touch collection is scoped to the overlay's own controls rather than system-wide
-(see above). There's still no editing UI for a `VisualObject` (rename, notes, image management) —
-Object Details is read-only; there's still no real persistence for the object library either —
-both unchanged since v0.7.0/v0.8.0. Nothing collected by Teaching Mode is yet associated with a
-specific `VisualObject` — this phase records raw sessions only; linking a session's frames/touches
-to a taught object is future work once recognition exists to make that link meaningful.
+**v0.10.0**: template *matching* is explicitly out of scope — "this module does NOT execute
+automation, it only learns." The spec's own `objectlearning/matcher/` folder is intentionally
+unbuilt this phase, exactly like `com.behaviorengine.recognition` and `com.behaviorengine.automation`
+stay empty/reserved — SPEC-11 is what reads `ObjectTemplate`s back and compares them against a live
+screen. There's no session-history/picker UI either (see above for why that doesn't block this
+phase); learned objects aren't yet linked to a specific `VisualObject` — `LearnedObject` only
+references the session/touch/frame it came from, since there's no UI yet for the user to say
+"these objects are the same thing I taught earlier."
+
+**v0.7.0/v0.8.0, unchanged**: image recognition, AI analysis, automation, auto-click, and
+Accessibility actions are all still out of scope app-wide. There's still no editing UI for a
+`VisualObject` (rename, notes, image management) — Object Details is read-only; there's still no
+real persistence for the object library either. Touch collection stays scoped to the teaching
+overlay's own controls rather than system-wide, per v0.9.0's reasoning.

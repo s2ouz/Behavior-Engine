@@ -15,8 +15,8 @@ android {
         applicationId = "com.behaviorengine"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.9.0"
+        versionCode = 10
+        versionName = "0.10.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -83,6 +83,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.timber)
+
+    implementation(libs.mlkit.objectdetection)
+    implementation(libs.mlkit.textrecognition)
+    implementation(libs.mlkit.languageid)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
